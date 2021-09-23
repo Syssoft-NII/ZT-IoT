@@ -20,12 +20,13 @@ verbose_print(struct audit_reply *reply)
     }
 }
 
+char	path[1024];
 
 int
 main(int argc, char **argv)
 {
     int	i, opt, rc, fd, pid;
-    long	rslt;
+    long	rslt, rslt2, rslt3;
     struct audit_rule_data *rule;
     struct audit_reply reply;
 #ifdef NONBLOCKING
@@ -102,15 +103,20 @@ main(int argc, char **argv)
 #endif
 
 	reply.message[reply.len] = 0;
-	rc = msg_seqnum(reply.message, &rslt);
-	printf("SEQ#%ld\n", rslt);
+	rc = msg_seqnum(reply.message, &rslt, &rslt2, &rslt3);
+	printf("SEQ#%ld time=%ld.%ld type(%d)\n", rslt, rslt2, rslt3, reply.type);
 	switch (reply.type) {
 	case AUDIT_SYSCALL:	/* 1300 linux/audit.h */
 	    rc = msg_syscall(reply.message, &rslt);
-	    printf("\tSYSCALL=%ld\n", rslt);
+	    printf("\tSYSCALL=%ld\t", rslt);
+	    rc = msg_pid(reply.message, &rslt);
+	    printf("PID=%ld\n", rslt);
 	    break;
 	    /* case AUDIT_FS_WATCH: 1301 deprecated */
 	case AUDIT_PATH: /* filename path: 1302 */
+	    rc = msg_filepath(reply.message, &rslt, path);
+	    printf("\t PATH item = %ld path = %s\n", rslt, path);
+	    break;
 	case AUDIT_IPC: /* IPC record: 1303 */
 	case AUDIT_SOCKETCALL: /* sys_socketcall args: 1304 */
 	case AUDIT_CONFIG_CHANGE: /* confi change: 1305 */
@@ -126,6 +132,7 @@ main(int argc, char **argv)
 	case AUDIT_FD_PAIR: /* audit record for pipe/socketpair: 1317 */
 	case AUDIT_OBJ_PID: /* ptrace target: 1318 */
 	case AUDIT_TTY: /* input on an admin. tty: 1319 */
+	    verbose_print(&reply);
 	    break;
 	case AUDIT_EOE: /* End of multi-record: 1320 */
 	    printf("\tEOE\n");
@@ -141,10 +148,10 @@ main(int argc, char **argv)
 	case AUDIT_PROCTITLE: /* proctitle emit 1327 */
 	    rc = msg_proctitle(reply.message, buf);
 	    if (rc < 0) {
-		printf("PROCTITLE= NOMATCH\n\t");
+		printf("\tPROCTITLE= NOMATCH\n\t");
 		verbose_print(&reply);
 	    } else {
-		printf("PROCTITLE=%s\n", buf);
+		printf("\tPROCTITLE=%s\n", buf);
 	    }
 	    // verbose_print(&reply);
 	    break;

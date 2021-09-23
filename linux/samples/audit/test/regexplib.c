@@ -3,15 +3,26 @@
 #include <string.h>
 #include <stdlib.h>
 
-static regex_t	preg_seqnum;
-static regex_t	preg_syscall;
-static regex_t	preg_proctitle1;
-static regex_t	preg_proctitle2;
-static char	*regex_seqnum = "audit([0-9].*:\\([0-9].*\\)):";
-//static char	*regex_seqnum = "audit(\\([0-9].*\\):\\([0-9].*\\)):";
-static char	*regex_syscall = ".*syscall=\\([0-9].*\\) success";
-static char	*regex_proctitle1 = ".*proctitle=\\([0-9|A-F].*\\) ";
-static char	*regex_proctitle2 = ".*proctitle=\\(\".*\"\\)";
+#define REG_SEQNUM	0
+#define REG_SYSCALL	1
+#define REG_PROCTITLE1	2
+#define REG_PROCTITLE2	3
+#define REG_PID		4
+#define REG_FILEPATH	5
+#define REG_MAX		6
+
+static regex_t	preg_audit[REG_MAX];
+static char	*regex_audit[REG_MAX+1] = {
+//    "audit([0-9].*:\\([0-9].*\\)):",
+    "audit(\\([0-9].*\\):\\([0-9].*\\)):",
+    ".*syscall=\\([0-9].*\\) success",
+    ".*proctitle=\\([0-9|A-F].*\\) ",
+    ".*proctitle=\\(\".*\"\\)",
+    ".* pid=\\([0-9].*\\) ",
+    "item=\\([0-9].*\\) name=\"\\(.*\\)\" ",
+    0
+};
+
 
 static char	*tmpbuf;
 static size_t	tbsz;
@@ -55,7 +66,7 @@ ext:
 void
 regex_init(size_t bsz)
 {
-    int	rc;
+    int	rc, i;
     size_t	sz;
     tbsz = bsz;
     tmpbuf = malloc(bsz);
@@ -63,26 +74,35 @@ regex_init(size_t bsz)
 	fprintf(stderr, "Cannot allocate memory\n");
 	exit(-1);
     }
-    if ((rc = regcomp(&preg_seqnum, regex_seqnum, 0)) < 0) {
-	printf("compile error\n");
-	sz = regerror(rc, &preg_seqnum, errbuf, 1024);
-	printf("errbuf=%s\n", errbuf);
+    for (i = 0; i < REG_MAX; i++) {
+	if ((rc = regcomp(&preg_audit[i], regex_audit[i], 0)) < 0) {
+	    printf("compile error\n");
+	    sz = regerror(rc, &preg_audit[i], errbuf, 1024);
+	    printf("errbuf=%s\n", errbuf);
+	}
     }
-    if ((rc = regcomp(&preg_syscall, regex_syscall, 0)) < 0) {
-	printf("compile error\n");
-	sz = regerror(rc, &preg_syscall, errbuf, 1024);
-	printf("errbuf=%s\n", errbuf);
+}
+
+static int
+regex_pattern0(regex_t *preg, char *msg, char *rslt1, char *rslt2)
+{
+    regmatch_t	pmatch[3];
+    size_t	sz;
+    int	rc;
+    memset(pmatch, 0, sizeof(pmatch));
+    if ((rc = regexec(preg, msg, 3, pmatch, 0)) < 0
+	|| rc == REG_NOMATCH) {
+	return -1;
     }
-    if ((rc = regcomp(&preg_proctitle1, regex_proctitle1, 0)) < 0) {
-	printf("compile error\n");
-	sz = regerror(rc, &preg_proctitle1, errbuf, 1024);
-	printf("errbuf=%s\n", errbuf);
-    }
-    if ((rc = regcomp(&preg_proctitle2, regex_proctitle2, 0)) < 0) {
-	printf("compile error\n");
-	sz = regerror(rc, &preg_proctitle2, errbuf, 1024);
-	printf("errbuf=%s\n", errbuf);
-    }
+    /* 1st */
+    sz = pmatch[1].rm_eo - pmatch[1].rm_so;
+    strncpy(rslt1, &msg[pmatch[1].rm_so], sz);
+    rslt1[sz] = 0;
+    /* 2nd */
+    sz = pmatch[2].rm_eo - pmatch[2].rm_so;
+    strncpy(rslt2, &msg[pmatch[2].rm_so], sz);
+    rslt2[sz] = 0;
+    return 0;
 }
 
 static int
@@ -96,7 +116,7 @@ regex_pattern1(regex_t *preg, char *msg, long *rslt)
 	|| rc == REG_NOMATCH) {
 	return -1;
     }
-    sz = pmatch[1].rm_so, pmatch[1].rm_eo;
+    sz = pmatch[1].rm_eo - pmatch[1].rm_so;
     // printf("start=%d, end=%d, sz = %ld\n", pmatch[1].rm_so, pmatch[1].rm_eo, sz);
     
     strncpy(tmpbuf, &msg[pmatch[1].rm_so], sz);
@@ -117,7 +137,7 @@ regex_pattern2(regex_t *preg, char *msg, char *rslt)
 	|| rc == REG_NOMATCH) {
 	return -1;
     }
-    sz = pmatch[1].rm_so, pmatch[1].rm_eo;
+    sz = pmatch[1].rm_eo - pmatch[1].rm_so;
     // printf("start=%d, end=%d, sz = %ld\n", pmatch[1].rm_so, pmatch[1].rm_eo, sz);
     
     strncpy(rslt, &msg[pmatch[1].rm_so], sz);
@@ -127,10 +147,23 @@ regex_pattern2(regex_t *preg, char *msg, char *rslt)
 }
 
 int
-msg_seqnum(char *msg, long *rslt)
+msg_seqnum(char *msg, long *seq, long *tm1, long *tm2)
 {
     int	rc;
-    rc = regex_pattern1(&preg_seqnum, msg, rslt);
+    char	*cp;
+    char	buf1[1024], buf2[1024];
+    
+    // rc = regex_pattern1(&preg_audit[REG_SEQNUM], msg, rslt);
+    rc = regex_pattern0(&preg_audit[REG_SEQNUM], msg, buf1, buf2);
+    *seq = atol(buf2);
+    if ((cp = index(buf1, '.')) == NULL) {
+	/* no msec */
+	*tm1 = atol(buf1);
+	*tm2 = 0;
+    } else {
+	*cp = 0;
+	*tm1 = atol(buf1); *tm2 = atol(cp + 1);
+    }
     return rc;
 }
 
@@ -138,7 +171,16 @@ int
 msg_syscall(char *msg, long *rslt)
 {
     int	rc;
-    rc = regex_pattern1(&preg_syscall, msg, rslt);
+    rc = regex_pattern1(&preg_audit[REG_SYSCALL], msg, rslt);
+    return rc;
+}
+
+
+int
+msg_pid(char *msg, long *rslt)
+{
+    int	rc;
+    rc = regex_pattern1(&preg_audit[REG_PID], msg, rslt);
     return rc;
 }
 
@@ -146,14 +188,19 @@ int
 msg_proctitle(char *msg, char *rslt)
 {
     int	rc;
-#if 0
-    rc = regex_pattern2(&preg_proctitle, msg, tmpbuf);
-    printf("%s: msg=%s\n\ttmpbuf=%s\n", __func__, msg, tmpbuf);
-    rc = hex2ascii(tmpbuf, rslt);
-#endif
-    rc = regex_pattern2(&preg_proctitle1, msg, rslt);
+    rc = regex_pattern2(&preg_audit[REG_PROCTITLE1], msg, rslt);
     if (rc < 0) {
-	rc = regex_pattern2(&preg_proctitle2, msg, rslt);
+	rc = regex_pattern2(&preg_audit[REG_PROCTITLE2], msg, rslt);
     }
+    return rc;
+}
+
+int
+msg_filepath(char *msg, long *item, char *path)
+{
+    int	rc;
+    char buf1[1024];
+    rc = regex_pattern0(&preg_audit[REG_FILEPATH], msg, buf1, path);
+    *item = atol(buf1);
     return rc;
 }
