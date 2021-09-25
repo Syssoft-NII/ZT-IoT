@@ -50,7 +50,7 @@ int
 main(int argc, char **argv)
 {
     int		rc;
-    long	rslt;
+    long	rslt, rslt2, rslt3;
 
     printf("TEST\n");
     {
@@ -70,9 +70,9 @@ main(int argc, char **argv)
     }
     
     regex_init(MAX_AUDIT_MESSAGE_LENGTH);
-    rc = msg_seqnum(msg_scall, &rslt);
+    rc = msg_seqnum(msg_scall, &rslt, &rslt2, &rslt3);
     if (rc == 0) {
-	printf("seqnum = %ld\n", rslt);
+	printf("seqnum = %ld time=%ld.%ld\n", rslt, rslt2, rslt3);
     } else {
 	printf("seqnum: no match\n");
     }

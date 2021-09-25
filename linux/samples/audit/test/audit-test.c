@@ -5,10 +5,13 @@
 #include <libaudit.h>
 #include <getopt.h>
 #include "regexplib.h"
+#include "sysname.h"
+#include "monlib.h"
 
 static int	iter = 20;
 static int	verbose = 0;
 static char	buf[MAX_AUDIT_MESSAGE_LENGTH];
+static char	path[1024];
 
 static inline void
 verbose_print(struct audit_reply *reply)
@@ -20,8 +23,6 @@ verbose_print(struct audit_reply *reply)
     }
 }
 
-char	path[1024];
-
 int
 main(int argc, char **argv)
 {
@@ -29,6 +30,7 @@ main(int argc, char **argv)
     long	rslt, rslt2, rslt3;
     struct audit_rule_data *rule;
     struct audit_reply reply;
+    monlst	*mlst;
 #ifdef NONBLOCKING
     fd_set	mask;
 #endif
@@ -45,6 +47,7 @@ main(int argc, char **argv)
     }
 
     regex_init(MAX_AUDIT_MESSAGE_LENGTH);
+    monlst_init();
     
     /* A process may access the audit kernel facility via netlink */
     fd = audit_open();
@@ -104,11 +107,12 @@ main(int argc, char **argv)
 
 	reply.message[reply.len] = 0;
 	rc = msg_seqnum(reply.message, &rslt, &rslt2, &rslt3);
-	printf("SEQ#%ld time=%ld.%ld type(%d)\n", rslt, rslt2, rslt3, reply.type);
+	mlst = monlst_find(rslt);
+	printf("SEQ#%ld (mlst:%p) time=%ld.%ld type(%d)\n", rslt, mlst, rslt2, rslt3, reply.type);
 	switch (reply.type) {
 	case AUDIT_SYSCALL:	/* 1300 linux/audit.h */
 	    rc = msg_syscall(reply.message, &rslt);
-	    printf("\tSYSCALL=%ld\t", rslt);
+	    printf("\tSYSCALL=%ld = %s\t", rslt, sysname[rslt]);
 	    rc = msg_pid(reply.message, &rslt);
 	    printf("PID=%ld\n", rslt);
 	    break;

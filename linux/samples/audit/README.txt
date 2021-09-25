@@ -27,6 +27,10 @@ $ sudo bash
    # auditctl -D
  3) The following command is the same rule in the audit-test sample program.
   # auditctl -a always,exit -S all
+ 4) To disable audit
+  # auditctl -e 0
+ 5) To see all system call names and numbers
+  $ ausyscall --dump
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 (3) How to run auditd
@@ -35,7 +39,7 @@ $ sudo bash
   # auditd -f -n -s enable
   # auditctl -a always,exit -S all
   
-(3) How to analyze a log file
+(4) How to analyze a log file
   process ID 43755§Œ≤Ú¿œŒ„
   $ ausearch -p 43755 -if LOG.audit
   $ ausearch -p 43755 -if LOG.audit --interpret
