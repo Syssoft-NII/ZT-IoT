@@ -1,0 +1,39 @@
+https://mmi.hatenablog.com/entry/2016/08/01/044000
+
+struct seccomp_data {
+    int nr ; /* System call number */
+    __u32 arch ; /* AUDIT_ARCH_ * value */
+    __u64 instruction_pointer ; /* CPU IP */
+    __u64 args [6]; /* System call arguments */
+}
+
+#define ARCH_NR AUDIT_ARCH_X86_64
+#define syscall_nr (offsetof(struct seccomp_data, nr))
+#define arch_nr (offsetof(struct seccomp_data, arch))
+
+#define VALIDATE_ARCHITECTURE \
+     BPF_STMT(BPF_LD+BPF_W+BPF_ABS, arch_nr), \
+     BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, ARCH_NR, 1, 0), \
+     BPF_STMT(BPF_RET+BPF_K, SECCOMP_RET_KILL)
+
+#define EXAMINE_SYSCALL				\
+     BPF_STMT(BPF_LD+BPF_W+BPF_ABS, syscall_nr)
+
+#define ALLOW_SYSCALL(name)				 \
+     BPF_JUMP(BPF_JMP+BPF_JEQ+BPF_K, __NR_##name, 0, 1), \
+     BPF_STMT(BPF_RET+BPF_K, SECCOMP_RET_ALLOW)
+
+#define KILL_PROCESS				\
+    BPF_STMT(BPF_RET+BPF_K, SECCOMP_RET_KILL)
+
+
+struct sock_filter filter[] = {
+    VALIDATE_ARCHITECTURE,
+    EXAMINE_SYSCALL,
+    ALLOW_SYSCALL(getpid),
+    ALLOW_SYSCALL(brk),
+    ALLOW_SYSCALL(write),
+    ALLOW_SYSCALL(fstat),
+    ALLOW_SYSCALL(exit_group),
+    KILL_PROCESS,
+}
