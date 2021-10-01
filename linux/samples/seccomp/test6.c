@@ -4,9 +4,11 @@
  */
 /*
  *	The open() in glibc 2.26 and older version uses the open() system call, but
- *	newer versions use the openat() system call !!!
- *	The exit syscall hangs on a child process !!!
- *	The child process issue the following sequence of syscalls in glibc level:
+ *	newer versions use the openat() system call.
+ *		See man seccomp(2)
+ *	Testing the exit() system call, which will hang, is coded in test7.c
+ *	In this test program,
+ *	the child process issue the following sequence of syscalls in glibc level:
  *		getpid(), getpid(), open(), read(), close(), exit()
  *	The main program adds compsec rules for getpid(), openat(), and close() syscalls.
  *	The controller tries to receive four notifications.
