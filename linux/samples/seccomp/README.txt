@@ -1,3 +1,6 @@
+The test6 test program does not work on Linux kernel 5.8, Ubuntu20.04
+It works on Linux kernel 5.10.60.
+
 (1) How to install libseccomp
 $ apt-get install gperf
 $ git clone https://github.com/seccomp/libseccomp
