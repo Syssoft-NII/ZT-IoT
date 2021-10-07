@@ -8,7 +8,7 @@ $ sudo apt-get install autoconf automake libtool autoconf-doc libtool-doc
 $ git clone https://github.com/linux-audit/audit-userspace.git
 $ cd audit-userspace
 $ autogen.sh
-$ ./configure --disable-zos-remote
+$ ./configure --disable-zos-remote --with-aarch64
 $ make
 $ sudo make install
 $ export LD_LIBRARY_PATH=:/usr/local/lib:$LD_LIBRART_PATH
