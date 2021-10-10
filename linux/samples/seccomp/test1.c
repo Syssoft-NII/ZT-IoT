@@ -1,3 +1,12 @@
+/*
+ *	This is an adhoc test program to understand seccomp.
+ *						2021/10/01
+ *				yutaka_ishikawa@nii.ac.jp
+ *	Using prctl and seccomp syscalls and capturing getpid() syscall.
+ *	Usage:
+ *	./test			causing core dump
+ *	./test any_string	shows the negative value of getpid
+ */
 #include <errno.h>
 #include <stddef.h>
 #include <stdio.h>
@@ -40,24 +49,25 @@ struct sock_fprog prog = {
 
 int main(int argc, char **argv)
 {
-    int err;
-
     if (prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0)) {
         perror("prctl");
         exit(EXIT_FAILURE);
     }
     //if(prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, &prog)){
+    printf("No argument of this program issues the seccomp() syscall "
+	   "that results in core dump.\n"
+	   "More than one argument (any string) shows the negative "
+	   "value of actual pid\n");
     if (argc == 1) {
-	printf("Issue seccomp\n");
+	printf("** Issue seccomp\n");
 	if (seccomp(SECCOMP_SET_MODE_FILTER, 0, &prog)){
 	    perror("seccomp");
 	}
     } else {
-	printf("No seccomp\n");
+	printf("** No seccomp\n");
     }
-
     pid_t pid = getpid();
-    printf("%d\n", pid);
+    printf("pid = %d\n", pid);
 
     return 0;
 }

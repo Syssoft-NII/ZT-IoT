@@ -19,13 +19,11 @@ int	fd;
 
 int main(int argc, char *argv[])
 {
-    int rc = -1, i;
-    int	ppid, pid;
+    int rc = -1;
+    int	pid;
     int status;
-    pthread_t	cntrl_thread;
     char	*libname;
 
-    ppid = getpid();
     ctx = seccomp_init(SCMP_ACT_LOG);
     libname = "seccomp_init";
     if (ctx == NULL) goto err;

@@ -1,3 +1,11 @@
+/*
+ *	This is an adhoc test program to understand seccomp.
+ *						2021/10/01
+ *				yutaka_ishikawa@nii.ac.jp
+ *	Using seccomp filter library.
+ *	Usage:
+ *	./test2 [<any string>]
+ */
 #include <stdio.h>
 #include <fcntl.h>
 #include <seccomp.h>
@@ -11,9 +19,6 @@ int main(int argc, char *argv[])
 {
     int rc = -1;
     scmp_filter_ctx ctx;
-    struct scmp_arg_cmp arg_cmp[] = { SCMP_A0(SCMP_CMP_EQ, 2) };
-    int fd;
-    unsigned char buf[BUF_SIZE];
 
     /*
      *	The argument of seccomp_init() is default action:
@@ -30,7 +35,7 @@ int main(int argc, char *argv[])
     if (argc == 1) {
 	rc = seccomp_rule_add(ctx, SCMP_ACT_ERRNO(123), SCMP_SYS(getpid), 0);
 	if (rc < 0) goto err;
-	printf("Disable getpid syscall\n");
+	printf("Disable getpid() syscall. return value must be -123\n");
     } else {
 	rc = seccomp_rule_add(ctx, SCMP_ACT_ALLOW, SCMP_SYS(getpid), 0);
 	if (rc < 0) goto err;

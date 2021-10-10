@@ -1,3 +1,28 @@
+/*
+ *	This is an adhoc test program to understand seccomp.
+ *						2021/10/01
+ */
+/*
+ *	The open() in glibc 2.26 and older version uses the open() system call,
+ *	but newer versions use the openat() system call.
+ *		See man seccomp(2)
+ *	Testing the exit() system call, which will hang, is coded in test7.c
+ *	In this test program,
+ *	the child process issues the following sequence of syscalls in the 
+ *	glibc level:
+ *		getpid(), getpid(), open(), read(), close(), exit()
+ *	The main program adds compsec rules for getpid(), openat(), and
+ *	 close() syscalls.
+ *	The controller tries to receive four notifications.
+ *	If the controller allows the operation, the response flags must
+ *	include the following flag:
+ *	    resp->flags |= SECCOMP_USER_NOTIF_FLAG_CONTINUE;
+ *	See
+ *		https://lwn.net/Articles/833128/
+ *	Usage:
+ *	$ echo "hello" >/tmp/123
+ *	./test5
+ */
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -10,16 +35,13 @@
 #include <seccomp.h>
 #include <pthread.h>
 
-//#define DEADLOCK_CLOSE
-
 #define BUF_SIZE    256
 char path[PATH_MAX];
 
 scmp_filter_ctx ctx;
 int	fd;
-//pthread_mutex_t	mutex = PTHREAD_MUTEX_INITIALIZER;
-//pthread_cond_t	cnd_start = PTHREAD_COND_INITIALIZER;
-//pthread_cond_t	cnd_stop = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t	mutex_start = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t	mutex_stop = PTHREAD_MUTEX_INITIALIZER;
 
 void *
 controller(void *arg)
@@ -30,14 +52,11 @@ controller(void *arg)
     struct seccomp_notif_resp *resp = NULL;
 
     printf("%s: Controller thread\n", __func__);
-//    pthread_cond_wait(&cnd_start, &mutex);
+    pthread_mutex_lock(&mutex_start);
     printf("%s: Starting fd = %d\n", __func__, fd);
 
-#ifdef DEADLOCK_CLOSE
-    for (i = 0; i < 3; i++) {
-#else
-    for (i = 0; i < 2; i++) {
-#endif
+#define ITER	5
+    for (i = 0; i < ITER; i++) {
 	int	mem;
 	rc = seccomp_notify_alloc(&req, &resp);
 	libname="seccomp_notify_alloc";
@@ -60,13 +79,18 @@ controller(void *arg)
 	    perror("open memory");
 	}
 	printf("mem = %d\n", mem);
+	resp->id = req->id;
+	resp->flags = 0; resp->error = 0;
 	switch (req->data.nr) {
 	case __NR_getpid:
 	    printf("%s: getpid\n", __func__);
 	    resp->val = -123;
 	    break;
+#if defined(__i386)
+	/* open syscall still exists in x86 Linux 5.XX. */
 	case __NR_open:
 	{
+	    printf("%s: open\n", __func__);
 	    if (lseek(mem, req->data.args[0], SEEK_SET) < 0) {
 		printf("%s: Cannot lseek to 0x%llx\n", __func__, req->data.args[0]);
 	    } else {
@@ -77,19 +101,40 @@ controller(void *arg)
 	    }
 	    break;
 	}
+#endif /* defined(__i386) */
+	case __NR_openat:
+	{
+	    printf("%s: openat\n", __func__);
+	    if (lseek(mem, req->data.args[1], SEEK_SET) < 0) {
+		printf("%s: Cannot lseek to 0x%llx\n", __func__, req->data.args[1]);
+	    } else {
+		char	buf[128];
+		memset(buf, 0, sizeof(buf));
+		read(mem, buf, 128);
+		printf("args[1] = %s\n", buf);
+	    }
+	    resp->flags |= SECCOMP_USER_NOTIF_FLAG_CONTINUE;
+	    break;
+	}
+	case __NR_read:
+	    printf("%s: read\n", __func__);
+	    resp->flags |= SECCOMP_USER_NOTIF_FLAG_CONTINUE;
+	    break;
 	case __NR_close:
 	    printf("%s: close\n", __func__);
+	    resp->flags |= SECCOMP_USER_NOTIF_FLAG_CONTINUE;
+	    break;
+	case __NR_exit:
+	    printf("%s: exit\n", __func__);
 	    break;
 	default:
-	    rc = -999;
-	    goto err;
+	    printf("%s: NR = %d CONTINUE\n", __func__, req->data.nr);
+	    resp->flags |= SECCOMP_USER_NOTIF_FLAG_CONTINUE;
+	    break;
 	}
 	printf("%s: going to close mem(%d)\n", __func__, mem);
 	close(mem);
 	printf("%s: done\n", __func__);
-	resp->id = req->id;
-	resp->error = 0;
-	resp->flags = 0;
 	printf("%s: notify_respond\n", __func__);
 	rc = seccomp_notify_respond(fd, resp);
 	printf("%s: done\n", __func__);
@@ -97,8 +142,9 @@ controller(void *arg)
 	if (rc) goto err;
 	seccomp_notify_free(req, resp);
     }
+    printf("%s: going to exit\n", __func__);
 out:
-//    pthread_cond_signal(&cnd_stop);
+    pthread_mutex_unlock(&mutex_stop);
     return NULL;
 err:
     printf("%s: seccomp ERROR: %s rc = %d\n", __func__, libname,  rc);
@@ -108,26 +154,35 @@ err:
 
 int main(int argc, char *argv[])
 {
-    int rc = -1, i;
-    int	ppid, pid;
+    int rc = -1;
+    int	pid;
     int status;
     pthread_t	cntrl_thread;
     char	*libname;
-    struct scmp_arg_cmp arg_cmp[] = { SCMP_A0(SCMP_CMP_EQ, 2) };
-    unsigned char buf[BUF_SIZE];
 
-//    rc = pthread_create(&cntrl_thread, NULL, controller, NULL);
-    ppid = getpid();
+    pthread_mutex_lock(&mutex_start);
+    pthread_mutex_lock(&mutex_stop);
+    rc = pthread_create(&cntrl_thread, NULL, controller, NULL);
     ctx = seccomp_init(SCMP_ACT_ALLOW);
     libname = "seccomp_init";
     if (ctx == NULL) goto err;
     rc = seccomp_rule_add(ctx, SCMP_ACT_NOTIFY, SCMP_SYS(getpid), 0);
-#ifdef DEADLOCK_CLOSE
-    rc = seccomp_rule_add(ctx, SCMP_ACT_NOTIFY, SCMP_SYS(close), 0);
-#endif
-    libname = "seccomp_init";
+    libname = "seccomp_rule_add getpid";
     if (rc < 0) goto err;
-    printf("main: Notify getpid and close syscall\n");
+    printf("open syscall = %d\n", SCMP_SYS(open));
+    rc = seccomp_rule_add(ctx, SCMP_ACT_NOTIFY, SCMP_SYS(open), 0);
+    libname = "seccomp_rule_add open";
+    if (rc < 0) goto err;
+    rc = seccomp_rule_add(ctx, SCMP_ACT_NOTIFY, SCMP_SYS(openat), 0);
+    libname = "seccomp_rule_add openat";
+    if (rc < 0) goto err;
+    rc = seccomp_rule_add(ctx, SCMP_ACT_NOTIFY, SCMP_SYS(close), 0);
+    libname = "seccomp_rule_add close";
+    if (rc < 0) goto err;
+    rc = seccomp_rule_add(ctx, SCMP_ACT_NOTIFY, SCMP_SYS(read), 0);
+    libname = "seccomp_rule_add read";
+    if (rc < 0) goto err;
+    printf("main: Notify getpid(), open(), openat(), close(), exit(), and read() syscalls\n");
     rc = seccomp_load(ctx);
     libname = "seccomp_load";
     if (rc < 0) goto err;
@@ -136,13 +191,14 @@ int main(int argc, char *argv[])
     libname = "seccomp_notify_fd";
     if (fd < 0) goto err;
 
-    // pthread_cond_signal(&cnd_start);
+    pthread_mutex_unlock(&mutex_start);
     pid = fork();
     if (pid == 0) {
 	/* child process */
 	pid_t pid;
 	int	rc, fd;
 	char	buf[11];
+	memset(buf, 0, 11);
 	printf("child: going to issue getpid()\n");
 	pid = getpid();
 	printf("child: pid = %d\n", pid);
@@ -151,28 +207,31 @@ int main(int argc, char *argv[])
 	pid = getpid();
 	printf("child: pid = %d\n", pid);
 
+	printf("child: 3rd going to issue open()\n");
 	fd = open("/tmp/123", O_RDONLY);
 	printf("child: fd = %d\n", fd);
+	printf("child: 4th going to issue open()\n");
 	read(fd, buf, 10);
 	buf[10] = 0;
 	printf("child: data = %s\n", buf);
 	if (fd >= 0) {
+	    printf("child: going to close fd(%d)\n", fd);
 	    rc = close(fd);
 	    printf("child: rc = %d\n", rc);
 	}
-	sleep(2);
+	sleep(1);
+	printf("child: going to issue exit()\n");
 	exit(0);
     }
     /* parent process */
-    controller(NULL);
 out:
     printf("main: waiting for exiting pid(%d)\n", pid);
     if (waitpid(pid, &status, 0) != pid) {
 	printf("main: waitpid ??\n");
 	return -3;
     }
-//    printf("main: waiting for exiting controller\n");
-//    pthread_cond_wait(&cnd_stop, &mutex);
+    printf("main: waiting for exiting controller\n");
+    pthread_mutex_lock(&mutex_stop);
     printf("main: going to seccomp_release\n");
     seccomp_release(ctx);
     return 0;

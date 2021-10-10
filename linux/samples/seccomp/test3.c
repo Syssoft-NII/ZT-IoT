@@ -1,3 +1,11 @@
+/*
+ *	This is an adhoc test program to understand seccomp.
+ *						2021/10/01
+ *				yutaka_ishikawa@nii.ac.jp
+ *	Testing a notify capability using getpid() syscall
+ *	Usage:
+ *	./test3
+ */
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/wait.h>
@@ -12,15 +20,12 @@
 int main(int argc, char *argv[])
 {
     int rc = -1;
-    int	ppid, pid;
+    int	pid;
     int fd, status;
     struct seccomp_notif *req = NULL;
     struct seccomp_notif_resp *resp = NULL;
     scmp_filter_ctx ctx;
-    struct scmp_arg_cmp arg_cmp[] = { SCMP_A0(SCMP_CMP_EQ, 2) };
-    unsigned char buf[BUF_SIZE];
 
-    ppid = getpid();
     /*
      * default action
      */
@@ -39,7 +44,8 @@ int main(int argc, char *argv[])
      */
     rc = seccomp_rule_add(ctx, SCMP_ACT_NOTIFY, SCMP_SYS(getpid), 0);
     if (rc < 0) goto err;
-    printf("Notify getpid syscall\n");
+    printf("Testing notify the getpid() syscall.\n"
+	   "The return value is the negative of pid\n");
     rc = seccomp_load(ctx);
     if (rc < 0) goto err;
 

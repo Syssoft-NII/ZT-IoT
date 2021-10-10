@@ -5,8 +5,9 @@ It works on Linux kernel 5.10.60.
 $ apt-get install gperf
 $ git clone https://github.com/seccomp/libseccomp
 $ cd libseccomp
-$ autogen.sh
+$ ./autogen.sh
 $ ./configure
+$ make
 $ sudo make install
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
