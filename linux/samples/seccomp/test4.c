@@ -47,6 +47,14 @@ int main(int argc, char *argv[])
      * seccomp_rule_add:
      *	When getpid system call is issued, its notification message is receivied.
      */
+    /*
+     * In x86, the mkdir() syscall must be added though mkdirat() syscall is
+     * eventually issued in the mkdir() glibc.
+     *	2021/10/10
+     */
+    rc = seccomp_rule_add(ctx, SCMP_ACT_NOTIFY, SCMP_SYS(mkdir), 0);
+    printf("rule_add mkdir rc = %d\n", rc);
+    if (rc < 0) goto err;
     rc = seccomp_rule_add(ctx, SCMP_ACT_NOTIFY, SCMP_SYS(mkdirat), 0);
     printf("rule_add mkdirat rc = %d\n", rc);
     if (rc < 0) goto err;
@@ -118,7 +126,7 @@ int main(int argc, char *argv[])
 	char	buf[128];
 	memset(buf, 0, sizeof(buf));
 	read(mem, buf, 128);
-	printf("args[1] = %s\n", buf);
+	printf("x86 mkdir !!! args[1] = %s\n", buf);
       }
     }
 #else
