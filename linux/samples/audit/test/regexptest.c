@@ -6,9 +6,12 @@
 
 #define MAX_AUDIT_MESSAGE_LENGTH 8970
 
-char	buf[MAX_AUDIT_MESSAGE_LENGTH];
+static char	buf[MAX_AUDIT_MESSAGE_LENGTH];
 
-char	*msg_scall = "audit(1632288380.516:296876): arch=c000003e syscall=7 success=yes exit=0 a0=7fd2c8000b60 a1=2 a2=7d0 a3=7fd2cfffe930 items=0 ppid=1 pid=2724 auid=4294967295 uid=0 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=(none) ses=4294967295 comm=\"GUsbEventThread\" exe=\"/usr/libexec/fwupd/fwupd\" subj=unconfined key=(null)";
+static char	*msg_scall = "audit(1632288380.516:296876): arch=c000003e syscall=7 success=yes exit=0 a0=7fd2c8000b60 a1=2 a2=7d0 a3=7fd2cfffe930 items=0 ppid=1 pid=2724 auid=4294967295 uid=0 gid=0 euid=0 suid=0 fsuid=0 egid=0 sgid=0 fsgid=0 tty=(none) ses=4294967295 comm=\"GUsbEventThread\" exe=\"/usr/libexec/fwupd/fwupd\" subj=unconfined key=(null)";
+
+static char	*msg_cdir = "audit(1648682333.838:128): cwd=\"/\"";
+static char	path[1024];
 
 static char
 _h2a(char *p)
@@ -82,6 +85,8 @@ main(int argc, char **argv)
     } else {
 	printf("syscall: no match\n");
     }
+    rc = msg_cwd(msg_cdir, path);
+    printf("rc = %d path = %s\n", rc, path);
     return 0;
 }
 

@@ -19,8 +19,8 @@ $ cd test
 $ make
 $ sudo bash
   # export LD_LIBRARY_PATH=:/usr/local/lib
-  # auditctl -a always,exit -S all
-  # ./audit-test
+  ######## auditctl -a always,exit -S all
+  # ./audit-test -v
  1) To see registered rules,
    # auditctl -l
  2) To delete all rules
@@ -36,8 +36,10 @@ $ sudo bash
 (3) How to run auditd
   $ sudo bash
   # export LD_LIBRARY_PATH=:/usr/local/lib
-  # auditd -f -n -s enable
+  # auditd -f -n -s enable -c /usr/local/etc/audit >& /dev/null
   # auditctl -a always,exit -S all
+  # auditctl -D
+  # auditctl -l
   
 (4) How to analyze a log file
   process ID 43755§Œ≤Ú¿œŒ„
@@ -47,6 +49,10 @@ $ sudo bash
   The following URL help you to understand the ausearch.
   https://access.redhat.com/documentation/ja-jp/red_hat_enterprise_linux/7/html/security_guide/sec-understanding_audit_log_files
 
+(5) plugin
+   $ /usr/local/etc/audit
+
+   
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 - SYSCALL
@@ -54,3 +60,10 @@ audit(1632288380.516:296876): arch=c000003e syscall=7 success=yes exit=0 a0=7fd2
 
 - PATH
 audit(1632382442.931:297291): item=0 name="/var/lib/fwupd/remotes.d/lvfs-testing" nametype=UNKNOWN cap_fp=0 cap_fi=0 cap_fe=0 cap_fver=0 cap_frootid=0
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Building audit-userspace
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+$ ./autogen.sh
+$ ./configure --prefix=/mnt1/ishikawa/ztiot/ --disable-zos-remote
+

@@ -9,7 +9,8 @@
 #define REG_PROCTITLE2	3
 #define REG_PID		4
 #define REG_FILEPATH	5
-#define REG_MAX		6
+#define REG_CWD		6
+#define REG_MAX		7
 
 static regex_t	preg_audit[REG_MAX];
 static char	*regex_audit[REG_MAX+1] = {
@@ -20,6 +21,7 @@ static char	*regex_audit[REG_MAX+1] = {
     ".*proctitle=\\(\".*\"\\)",
     ".* pid=\\([0-9].*\\) ",
     "item=\\([0-9].*\\) name=\"\\(.*\\)\" ",
+    ".* cwd=\"\\(.*\\)\"",
     0
 };
 
@@ -202,5 +204,13 @@ msg_filepath(char *msg, long *item, char *path)
     char buf1[1024];
     rc = regex_pattern0(&preg_audit[REG_FILEPATH], msg, buf1, path);
     *item = atol(buf1);
+    return rc;
+}
+
+int
+msg_cwd(char *msg, char *path)
+{
+    int	rc;
+    rc = regex_pattern2(&preg_audit[REG_CWD], msg, path);
     return rc;
 }

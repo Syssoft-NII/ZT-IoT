@@ -109,6 +109,9 @@ main(int argc, char **argv)
 	rc = msg_seqnum(reply.message, &rslt, &rslt2, &rslt3);
 	mlst = monlst_find(rslt);
 	printf("SEQ#%ld (mlst:%p) time=%ld.%ld type(%d)\n", rslt, mlst, rslt2, rslt3, reply.type);
+	if (verbose) {
+	    printf("\t->%s\n", reply.message);
+	}
 	switch (reply.type) {
 	case AUDIT_SYSCALL:	/* 1300 linux/audit.h */
 	    rc = msg_syscall(reply.message, &rslt);
@@ -121,11 +124,14 @@ main(int argc, char **argv)
 	    rc = msg_filepath(reply.message, &rslt, path);
 	    printf("\t PATH item = %ld path = %s\n", rslt, path);
 	    break;
+	case AUDIT_CWD: /* current working dir: 1307 */
+	    rc = msg_cwd(reply.message, path);
+	    printf("\t CWD=%s  MESSAGE=%s\n", path, reply.message);
+	    break;
 	case AUDIT_IPC: /* IPC record: 1303 */
 	case AUDIT_SOCKETCALL: /* sys_socketcall args: 1304 */
 	case AUDIT_CONFIG_CHANGE: /* confi change: 1305 */
 	case AUDIT_SOCKADDR: /* sockaddr: 1306 */
-	case AUDIT_CWD: /* current working dir: 1307 */
 	case AUDIT_EXECVE: /* execve args: 1309 */
 	case AUDIT_IPC_SET_PERM: /* IPC new permissions: 1311 */
 	case AUDIT_MQ_OPEN: /* POSIX MQ open record: 1312 */
