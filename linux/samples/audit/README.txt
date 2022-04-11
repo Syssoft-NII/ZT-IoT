@@ -13,6 +13,8 @@ $ make
 $ sudo make install
 $ export LD_LIBRARY_PATH=:/usr/local/lib:$LD_LIBRART_PATH
 $ export export MANPATH=:/usr/local/man:$MANPATH
+## For docker
+	$ make dist
 
 (2) How to compile and run the audit-test sample program.
 $ cd test
@@ -37,9 +39,11 @@ $ sudo bash
   $ sudo bash
   # export LD_LIBRARY_PATH=:/usr/local/lib
   # auditd -f -n -s enable -c /usr/local/etc/audit >& /dev/null
-  # auditctl -a always,exit -S all
+  # auditctl -a always,exit -S allp
   # auditctl -D
   # auditctl -l
+  # auditd -f -n -s enable >& /dev/null
+  # auditctl -a always,exit -F arch=b64 -S execve,clone,openat
   
 (4) How to analyze a log file
   process ID 43755§Œ≤Ú¿œŒ„
@@ -52,7 +56,8 @@ $ sudo bash
 (5) plugin
    $ /usr/local/etc/audit
 
-   
+(6) docker
+   $ sudo docker run -itd --name myubuntu ubuntu -v /home:/home
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 - SYSCALL
@@ -67,3 +72,14 @@ Building audit-userspace
 $ ./autogen.sh
 $ ./configure --prefix=/mnt1/ishikawa/ztiot/ --disable-zos-remote
 
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+SSH
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+$ sudo apt install openssh-server
+$ sudo systemctl status ssh
+
+https://access.redhat.com/documentation/en/red_hat_enterprise_linux/6/html/security_guide/sec-audit_record_types
+
+https://access.redhat.com/documentation/ja-jp/red_hat_enterprise_linux/6/html/security_guide/sec-audit_record_types
+
+https://documentation.suse.com/sles/12-SP4/html/SLES-all/cha-audit-comp.html

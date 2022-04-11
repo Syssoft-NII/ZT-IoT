@@ -36,18 +36,100 @@
 #define PARAM_SYSCALL_KEY	26
 #define PARAM_MMAP_FD		1
 #define PARAM_MMAP_FLAGS	2
-#define PARAM_PATH_PATH		2
+//#define PARAM_PATH_PATH		2
+#define PARAMS_USER_LOGIN_PID		1
+#define PARAMS_USER_LOGIN_UID		2
+#define PARAMS_USER_LOGIN_AUID		3
+#define PARAMS_USER_LOGIN_SES		4
+#define PARAMS_USER_LOGIN_SUBJ		5
+#define PARAMS_USER_LOGIN_MSG		6
+#define PARAMS_USER_LOGIN_ID		7
+#define PARAMS_USER_LOGIN_EXE		8
+#define PARAMS_USER_LOGIN_HOSTNAME	9
+#define PARAMS_USER_LOGIN_ADDR		10
+#define PARAMS_USER_LOGIN_TERMINAL	11
+#define PARAMS_USER_LOGIN_RES		12
+#define PARAMS_CRED_ACQ_PID	1
+#define PARAMS_CRED_ACQ_UID	2
+#define PARAMS_CRED_ACQ_AUID	3
+#define PARAMS_CRED_ACQ_SES	4
+#define PARAMS_CRED_ACQ_SUBJ	5
+#define PARAMS_CRED_ACQ_MSG	6
+#define PARAMS_CRED_ACQ_GRANT	7
+#define PARAMS_CRED_ACQ_ACCT	8
+#define PARAMS_CRED_ACQ_EXE	9
+#define PARAMS_CRED_ACQ_HOSTNAME	10
+#define PARAMS_CRED_ACQ_ADDR	11
+#define PARAMS_CRED_ACQ_TERMINAL	12
+#define PARAMS_CRED_ACQ_RES	13
+#define PARAMS_USER_ACCT_PID	1
+#define PARAMS_USER_ACCT_UID	2
+#define PARAMS_USER_ACCT_AUID	3
+#define PARAMS_USER_ACCT_SES	4
+#define PARAMS_USER_ACCT_SUBJ	5
+#define PARAMS_USER_ACCT_MSG	6
+#define PARAMS_USER_ACCT_GRANT	7
+#define PARAMS_USER_ACCT_ACCT	8
+#define PARAMS_USER_ACCT_EXE	9
+#define PARAMS_USER_ACCT_HOSTNAME	10
+#define PARAMS_USER_ACCT_ADDR	11
+#define PARAMS_USER_ACCT_TERMINAL	12
+#define PARAMS_USER_ACCT_RES	13
+#define PARAMS_LOGIN_PID	1
+#define PARAMS_LOGIN_UID	2
+#define PARAMS_LOGIN_SUBJ	3
+#define PARAMS_LOGIN_OLD_AUID	4
+#define PARAMS_LOGIN_AUID	5
+#define PARAMS_LOGIN_TTY	6
+#define PARAMS_LOGIN_OLD_SES	7
+#define PARAMS_LOGIN_SES	8
+#define PARAMS_LOGIN_RES	9
 
-#define MAX_ARGS	16
+#define PARAMS_SERVICE_STARTSTOP_PID	1
+#define PARAMS_SERVICE_STARTSTOP_UID	2
+#define PARAMS_SERVICE_STARTSTOP_AUID	3
+#define PARAMS_SERVICE_STARTSTOP_SES	4
+#define PARAMS_SERVICE_STARTSTOP_SUBJ	5
+#define PARAMS_SERVICE_STARTSTOP_MSG	6
+#define PARAMS_SERVICE_STARTSTOP_COMM	7
+#define PARAMS_SERVICE_STARTSTOP_EXE	8
+#define PARAMS_SERVICE_STARTSTOP_HOSTNAME	9
+#define PARAMS_SERVICE_STARTSTOP_ADDR		10
+#define PARAMS_SERVICE_STARTSTOP_TERMINAL	11
+#define PARAMS_SERVICE_STARTSTOP_RES		12
+
+#define PARAMS_DAEMON_START_OP	1
+#define PARAMS_DAEMON_START_VER	2
+#define PARAMS_DAEMON_START_FORMAT	3
+#define PARAMS_DAEMON_START_KERNEL	4
+#define PARAMS_DAEMON_START_AUID	5
+#define PARAMS_DAEMON_START_PID		6
+#define PARAMS_DAEMON_START_UID		7
+#define PARAMS_DAEMON_START_SES		8
+#define PARAMS_DAEMON_START_SUBJ	9
+#define PARAMS_DAEMON_START_RES		10
+
+
+#define DEFAULT_COUNT	200
+#define MAX_ARGS	128
 #define MAX_PARAMS	48
 const char	*params_syscall[MAX_PARAMS];
 const char	*params_mmap[MAX_PARAMS];
-const char	*params_path[MAX_PARAMS];
+const char	*params_paths[16];		/* FIXME */
+const char	*params_etc[MAX_PARAMS];
 char	proctitle[MAX_AUDIT_MESSAGE_LENGTH];
-const char	*cwd, *path;
+const char	*cwd;
+const char	*saddr;
+int	npath;
 
 pid_t	mypid;
 long	count;
+
+int	execve_argc;
+const char	*execve_args[MAX_ARGS];
+#define LOG_FILE	"/tmp/LOG_AUDIT"
+char	combuf[MAX_AUDIT_MESSAGE_LENGTH];
+auparse_state_t	*au;
 
 void cleanup_params(const char **area)
 {
@@ -59,17 +141,13 @@ void cleanup_params(const char **area)
 
 void cleanup()
 {
-    cwd = 0; proctitle[0] = 0;  path = 0;
+    cwd = 0; saddr = 0; proctitle[0] = 0; npath = 0;
+    execve_argc = -1;
     cleanup_params(params_syscall);
     cleanup_params(params_mmap);
-    cleanup_params(params_path);
+    cleanup_params(params_etc);
 }
 
-char	*args[MAX_ARGS];
-
-#define LOG_FILE	"/tmp/LOG_AUDIT"
-char	combuf[MAX_AUDIT_MESSAGE_LENGTH];
-auparse_state_t	*au;
 
 static char
 _h2a(const char *p)
@@ -115,23 +193,36 @@ static void term_handler(int sig)
     exit(-1);
 }
 
+static int catch_hup;
 /*
  * SIGHUP handler: re-read config
  */
 static void hup_handler(int sig)
 {
-    printf("SIGHUP is catched\n");
-    exit(-1);
+
+    count = DEFAULT_COUNT;
+    catch_hup = 1;
+    printf("SIGHUP is catched. count is now %ld\n", count);
+    fflush(stdout);
+}
+
+static void
+print_timestamp(const au_event_t *evnt)
+{
+    printf(" %lu.%d:%lu", evnt->sec, evnt->milli, evnt->serial);
 }
 
 static void
 handle_event(auparse_state_t *au,
 	     auparse_cb_event_t cb_event_type, void *user_data)
 {
+    const au_event_t	*evnt;
     int		nrec, tot_args, syscall, i;
+    char	*cmd;
 
     if (cb_event_type != AUPARSE_CB_EVENT_READY)
 	return;
+    evnt = auparse_get_timestamp(au);
     nrec = auparse_get_num_records(au);
     // printf("EVENT(%ld): nrec(%d)\n", count, nrec);
     tot_args = 0; syscall = -1;
@@ -174,8 +265,7 @@ handle_event(auparse_state_t *au,
 	}
 	case AUDIT_PATH:
 	    auparse_goto_field_num(au, 2);
-	    path = params_path[PARAM_PATH_PATH]
-		= auparse_get_field_str(au);
+	    params_paths[npath++] =  auparse_get_field_str(au);
 	    // printf("\tPATH=%s\n", params_path[PARAM_PATH_PATH]);
 	    break;
 	case AUDIT_PROCTITLE:
@@ -184,30 +274,58 @@ handle_event(auparse_state_t *au,
 	    hex2ascii(cp, proctitle);
 	    //printf("\tPROCTITLE=%s\n", proctitle);
 	    break;
+	case AUDIT_SOCKADDR:
+	    auparse_goto_field_num(au, 1);
+	    saddr = auparse_get_field_str(au);
+	    break;
 	case AUDIT_CWD:
 	    auparse_goto_field_num(au, 1);
 	    cwd = auparse_get_field_str(au);
 	    //printf("\tCWD=%s\n", cwd);
 	    break;
-	case AUDIT_EXECVE:
+	case AUDIT_EXECVE: /* with clone always ?? */
 	{
 	    int	k, argc;
-	    const char	*str_argc, **str_arg;
+	    const char *str_argc;
+#if 0
+	    {
+		int	l, tp;
+		const char	*tcp;
+		printf("EXECVE: nrec(%d)\n", nrec);
+		for (l = 0; l < nrec; l++) {
+		    auparse_goto_record_num(au, l);
+		    tp = auparse_get_type(au);
+		    tcp = audit_msg_type_to_name(tp);
+		    printf(" type(%s)", tcp);
+		    if (tp == AUDIT_PATH) {
+			auparse_goto_field_num(au, 2);
+			printf("=\"%s\"", auparse_get_field_str(au));
+		    }
+		}
+		printf("\n");
+		/* back to the record */
+		auparse_goto_record_num(au, i);
+	    }
+#endif /* 0 */
 	    auparse_goto_field_num(au, 1);
 	    str_argc = auparse_get_field_str(au);
-	    argc = atoi(str_argc);
-	    str_arg = malloc(sizeof(char*)*argc);
-	    for (k = 0; k < argc; k++) {
-		auparse_goto_field_num(au, k + 2);
-		str_arg[k] = auparse_get_field_str(au);
+	    execve_argc = atoi(str_argc);
+	    if (execve_argc > MAX_ARGS) {
+		printf("Warning # of argument is too large %d > %d\n", execve_argc, MAX_ARGS);
+		execve_argc = MAX_ARGS;
 	    }
-	    printf("\tEXECVE=%s, argc = %d(%s), ", cp, argc, str_argc);
-	    for (k = 0; k < argc; k++) {
-		printf("%s, ", str_arg[k]);
+	    for (k = 0; k < execve_argc; k++) {
+		auparse_goto_field_num(au, k + 2);
+		execve_args[k] = auparse_get_field_str(au);
+	    }
+#if 0
+	    printf("\tEXECVE=%s, argc = %d(%s), ", cp, execve_argc, str_argc);
+	    for (k = 0; k < execve_argc; k++) {
+		printf("%s, ", execve_args[k]);
 	    }
 	    printf("\n");
-	    // printf("\t\tRAWTEXT=\"%s\"\n", auparse_get_record_text(au));
-	    free(str_arg);
+	    printf("\t\tRAWTEXT=\"%s\"\n", auparse_get_record_text(au));
+#endif /* 0 */
 	    break;
 	}
 	case AUDIT_MMAP:
@@ -223,22 +341,78 @@ handle_event(auparse_state_t *au,
 	    //printf("t\tRAWTEXT=\"%s\"\n", auparse_get_record_text(au));
 	    break;
 	}
-	default:
-	    printf("\tUNPROCESSING type(%d)(%s) recordpos(%d) %s #fields(%d)==>",
-		   type, cp, i, auparse_interpret_field(au), fnum);
-	    for (j = 0; j < fnum; j++) {
-		printf("\t%s(%d) ", auparse_get_field_str(au), j);
-		auparse_next_field(au);
+	case AUDIT_DAEMON_START: /* 1200 */
+	    cmd = "DAEMON_START";
+	    syscall = -7;
+	    goto capture;
+	    break;
+	case AUDIT_SERVICE_START:
+	    cmd = "USER_START";
+	    syscall = -6;
+	    goto capture;
+	case AUDIT_SERVICE_STOP:
+	    cmd = "USER_STOP";
+	    syscall = -6;
+	    goto capture;
+	case AUDIT_USER_START: /* same as ACCT */
+	    cmd = "USER_START";
+	    syscall = -4;
+	    goto capture;
+	case AUDIT_USER_END: /* same as ACCT */
+	    cmd = "USER_END";
+	    syscall = -4;
+	    goto capture;
+	case AUDIT_USER_ACCT:	/* 1101 user system access authorization */
+	    cmd = "USER_ACCT";
+	    syscall = -4;
+	    goto capture;
+	case AUDIT_LOGIN:	/* 1006 degfine the login id and info */
+	    syscall = -5;
+	    goto capture;
+	    break;
+	case AUDIT_USER_LOGIN:	/* user login, just one record */
+	    syscall = -2;
+	    goto capture;
+	case AUDIT_CRED_DISP: /* same as CRED_ACQ */
+	    if (nrec == 1) { /* single record */
+		cmd = "CRED_DISP";
+		syscall = -3;
 	    }
-	    printf("\n");
-	    printf("\t\tRAWTEXT=\"%s\"\n", auparse_get_record_text(au));
+	    goto capture;
+	case AUDIT_CRED_ACQ:	/* user credential acquired
+				 * with syscall clone record */
+	{
+	    /* user credential acquired may happen with syscall clone record
+	     * or single record */
+	    if (nrec == 1) { /* single record */
+		cmd = "CRED_ACQ";
+		syscall = -3;
+	    }
+	capture:
+	    for (j = 0; j < fnum; j++) {
+		auparse_goto_field_num(au, j);
+		params_etc[j] = auparse_get_field_str(au);
+	    }
+	    break;
+	}
+	case AUDIT_CONFIG_CHANGE: /* 1305 audit system configuration change */
+	default:
+	    if (syscall != -1) {
+		printf("**UNPROCESSING RAWTEXT=\"%s\"\n", auparse_get_record_text(au));
+	    }
+	    break;
 	}
     }
     printf("EVENT(%ld): nrec(%d)\n", count, nrec);
-    if (syscall != -1) {
+    /*
+     * execve system call has the following record
+     *	SYSCALL, EXECVE, CWD, PATH, PATH, .. , PROCTITLE
+     */
+    if (syscall > 0) {
 	int	j;
 	printf("\ttopic=/IoT/XXX/%s/audit =",
 	       params_syscall[PARAM_SYSCALL_PID]);
+	print_timestamp(evnt);
 	printf(" ppid=%s uid=%s gid=%s "
 	       "SYSCALL=%s (%d) success(%s) exit(%s) ",
 	       params_syscall[PARAM_SYSCALL_PPID],
@@ -250,12 +424,138 @@ handle_event(auparse_state_t *au,
 	for (j = 0; j < 4; j++) {
 	    printf(" arg%d(%s)", j, params_syscall[j+PARAM_SYSCALL_A0]);
 	}
-	if (path) { printf(" path=%s", path); }
+	printf(" npath=%d", npath);
+	for (j = 0; j < npath; j++) {
+	    printf(" PATH=%s", params_paths[j]);
+	}
+	printf(" saddr=%s", (saddr == NULL ? "none" : saddr));
 	printf(" exec=%s", params_syscall[PARAM_SYSCALL_EXE]);
 	//if (proctitle[0] != 0) { printf(" proctitle=%s", proctitle); }
+	printf(" exec_argc=%d", execve_argc > 0 ? execve_argc : 0);
+	fflush(stdout);
+	if (execve_argc > 0) {
+	    for (j = 0; j < execve_argc; j++) {
+		printf(" arg%d=%s", j, execve_args[j]);
+	    }
+	}
 	printf("\n");
+	/* system call# depends on architecture */
+	if (strcmp("clone", sysname[syscall]) == 0
+	    && params_etc[0] != NULL) {
+	    /* CREAD_ACQ event happens also */
+	    goto cred_acq;
+	}
     } else {
-	printf("syscall = -1\n");
+	switch (syscall) {
+	case -2:
+	/* AUDIT_USER_LOGIN */
+	    printf("\ttopic=/IoT/XXX/%s/audit =",
+		   params_etc[PARAMS_USER_LOGIN_PID]);
+	    print_timestamp(evnt);
+	    printf(" uid=%s auid=%s ses=%s USER_LOGIN subj=%s msg=%s id=%s exe=%s hostname=%s addr=%s terminal=%s res=%s\n",
+		   params_etc[PARAMS_USER_LOGIN_UID],
+		   params_etc[PARAMS_USER_LOGIN_AUID],
+		   params_etc[PARAMS_USER_LOGIN_SES],
+		   params_etc[PARAMS_USER_LOGIN_SUBJ],
+		   params_etc[PARAMS_USER_LOGIN_MSG],
+		   params_etc[PARAMS_USER_LOGIN_ID],
+		   params_etc[PARAMS_USER_LOGIN_EXE],
+		   params_etc[PARAMS_USER_LOGIN_HOSTNAME],
+		   params_etc[PARAMS_USER_LOGIN_ADDR],
+		   params_etc[PARAMS_USER_LOGIN_TERMINAL],
+		   params_etc[PARAMS_USER_LOGIN_RES]);
+	    break;
+	case -3: /* Single CRED_ACQ or CRED_DISP event */
+	    cred_acq:
+	    printf("\ttopic=/IoT/XXX/%s/audit =",
+		   params_etc[PARAMS_CRED_ACQ_PID]);
+	    print_timestamp(evnt);
+	    printf(" uid=%s auid=%s ses=%s %s subj=%s msg=%s grantors=%s acct=%s exe=%s hostname=%s addr=%s terminal=%s res=%s\n",
+		   params_etc[PARAMS_CRED_ACQ_UID],
+		   params_etc[PARAMS_CRED_ACQ_AUID],
+		   params_etc[PARAMS_CRED_ACQ_SES],
+		   cmd,
+		   params_etc[PARAMS_CRED_ACQ_SUBJ],
+		   params_etc[PARAMS_CRED_ACQ_MSG],
+		   params_etc[PARAMS_CRED_ACQ_GRANT],
+		   params_etc[PARAMS_CRED_ACQ_ACCT],
+		   params_etc[PARAMS_CRED_ACQ_EXE],
+		   params_etc[PARAMS_CRED_ACQ_HOSTNAME],
+		   params_etc[PARAMS_CRED_ACQ_ADDR],
+		   params_etc[PARAMS_CRED_ACQ_TERMINAL],
+		   params_etc[PARAMS_CRED_ACQ_RES]);
+	    break;
+	case -4: /* AUDIT_USER_ACCT */
+	    printf("\ttopic=/IoT/XXX/%s/audit =",
+		   params_etc[PARAMS_USER_ACCT_PID]);
+	    print_timestamp(evnt);
+	    printf(" uid=%s auid=%s ses=%s %s subj=%s msg=%s grantors=%s acct=%s exe=%s hostname=%s addr=%s terminal=%s res=%s\n",
+		   params_etc[PARAMS_USER_ACCT_UID],
+		   params_etc[PARAMS_USER_ACCT_AUID],
+		   params_etc[PARAMS_USER_ACCT_SES],
+		   cmd,
+		   params_etc[PARAMS_USER_ACCT_SUBJ],
+		   params_etc[PARAMS_USER_ACCT_MSG],
+		   params_etc[PARAMS_USER_ACCT_GRANT],
+		   params_etc[PARAMS_USER_ACCT_ACCT],
+		   params_etc[PARAMS_USER_ACCT_EXE],
+		   params_etc[PARAMS_USER_ACCT_HOSTNAME],
+		   params_etc[PARAMS_USER_ACCT_ADDR],
+		   params_etc[PARAMS_USER_ACCT_TERMINAL],
+		   params_etc[PARAMS_USER_ACCT_RES]);
+	    break;
+	case -5: /* AUDIT_LOGIN */
+	    printf("\ttopic=/IoT/XXX/%s/audit =",
+		   params_etc[PARAMS_LOGIN_PID]);
+	    print_timestamp(evnt);
+	    printf(" uid=%s subj=%s old_auid=%s LOGIN auid=%s tty=%s old_ses=%s ses=%s ref=%s\n",
+		   params_etc[PARAMS_LOGIN_UID],
+		   params_etc[PARAMS_LOGIN_SUBJ],
+		   params_etc[PARAMS_LOGIN_OLD_AUID],
+		   params_etc[PARAMS_LOGIN_AUID],
+		   params_etc[PARAMS_LOGIN_TTY],
+		   params_etc[PARAMS_LOGIN_OLD_SES],
+		   params_etc[PARAMS_LOGIN_SES],
+		   params_etc[PARAMS_LOGIN_RES]);
+	    break;
+	case -6:
+	    printf("\ttopic=/IoT/XXX/%s/audit =",
+		   params_etc[PARAMS_SERVICE_STARTSTOP_PID]);
+	    print_timestamp(evnt);
+	    printf(" uid=%s auid=%s %s ses=%s subj=%s msg=%s comm=%s exe=%s hostname=%s add=%s terminal=%s res=%s\n",
+		   params_etc[PARAMS_SERVICE_STARTSTOP_UID],
+		   params_etc[PARAMS_SERVICE_STARTSTOP_AUID],
+		   cmd,
+		   params_etc[PARAMS_SERVICE_STARTSTOP_SES],
+		   params_etc[PARAMS_SERVICE_STARTSTOP_SUBJ],
+		   params_etc[PARAMS_SERVICE_STARTSTOP_MSG],
+		   params_etc[PARAMS_SERVICE_STARTSTOP_COMM],
+		   params_etc[PARAMS_SERVICE_STARTSTOP_EXE],
+		   params_etc[PARAMS_SERVICE_STARTSTOP_HOSTNAME],
+		   params_etc[PARAMS_SERVICE_STARTSTOP_ADDR],
+		   params_etc[PARAMS_SERVICE_STARTSTOP_TERMINAL],
+		   params_etc[PARAMS_SERVICE_STARTSTOP_RES]);
+	    break;
+	case -7:
+	    printf("\ttopic=/IoT/XXX/%s/audit =",
+		   params_etc[PARAMS_DAEMON_START_PID]);
+	    print_timestamp(evnt);
+	    printf(" %s op=%s ver=%s format=%s kernel=%s auid=%s uid=%s ses=%s subj=%s res=%s\n",
+		   cmd,
+		   params_etc[PARAMS_DAEMON_START_OP],
+		   params_etc[PARAMS_DAEMON_START_VER],
+		   params_etc[PARAMS_DAEMON_START_FORMAT],
+		   params_etc[PARAMS_DAEMON_START_KERNEL],
+		   params_etc[PARAMS_DAEMON_START_AUID],
+		   params_etc[PARAMS_DAEMON_START_UID],
+		   params_etc[PARAMS_DAEMON_START_SES],
+		   params_etc[PARAMS_DAEMON_START_SUBJ],
+		   params_etc[PARAMS_DAEMON_START_RES]);
+	    break;
+	default:
+	    printf("syscall = %d\n", syscall);
+	    printf("\tUNPROCESSING RAWTEXT=\"%s\"\n", auparse_get_record_text(au));
+	}
     }
 ext:
     return;
@@ -268,7 +568,7 @@ main(int argc, char **argv)
     ssize_t	len;
     struct sigaction sa;
 
-    count = 100;
+    count = DEFAULT_COUNT; catch_hup = 0;
     mypid = getpid();
     /* Register sighandlers */
     sa.sa_flags = 0;
@@ -300,11 +600,17 @@ main(int argc, char **argv)
     auparse_add_callback(au, handle_event, NULL, NULL);
     /**/
     printf("<%d>Now listing.....\n", mypid); fflush(stdout);
+retry:
     while ((len = read(0, combuf, MAX_AUDIT_MESSAGE_LENGTH)) > 0) {
 	// printf("READ(%ld)==> %s<==READ\n", len, buf); fflush(stdout);
-	auparse_feed(au, combuf, len);
+	if (count > 0) {
+	    auparse_feed(au, combuf, len);
+	}
 	--count;
-	if (count == 0) break;
+    }
+    if (catch_hup) {
+	catch_hup = 0;
+	goto retry;
     }
     printf("EXITING\n");
     fclose(fout); fclose(fin);
