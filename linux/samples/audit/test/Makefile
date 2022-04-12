@@ -2,16 +2,28 @@ LIB=/usr/local/lib
 IMAGE=plugin-2
 AUDISP=plugin-test
 DST=./docker/audit/bin
-all: audit-test regexptest plugin plugin-2
+all: audit-test regexptest cmdtest plugin plugin-2 plugin-3 selinux mqtt_sub mqtt_pub
 
 audit-test: sysname.h audit-test.c regexplib.o monlib.o
 	$(CC) -g -o audit-test audit-test.c regexplib.o monlib.o -L$(LIB) -laudit
 regexptest: regexptest.o regexplib.o
 	$(CC) -g -o regexptest regexptest.o regexplib.o
+cmdtest: cmdtest.o mylib.o
+	$(CC) -g -o $@ $^
 plugin: plugin.c
-	$(CC) -g -I/usr/local/include -o $@ $^ -L/usr/local/lib/ -lauparse -laudit
+	$(CC) -g -I/usr/local/include -o $@ $< -L/usr/local/lib/ -lauparse -laudit
 plugin-2: plugin-2.c sysname.h
-	$(CC) -g -I/usr/local/include -o $@ $^ -L/usr/local/lib/ -lauparse -laudit
+	$(CC) -g -I/usr/local/include -o $@ $< -L/usr/local/lib/ -lauparse -laudit
+plugin-3: plugin-3.c sysname.h log-field.h mylib.o
+	$(CC) -g -I/usr/local/include -o $@ $< mylib.o -L/usr/local/lib/ -lauparse -laudit
+mylib.o: mylib.c
+	$(CC) -g -c -o $@ $^
+selinux: selinux.c
+	gcc -o $@ $< -lselinux
+mqtt_sub: mqtt_sub.c
+	gcc -o $@ $< -lmosquitto
+mqtt_pub: mqtt_pub.c
+	gcc -o $@ $< -lmosquitto
 install:
 	install $(IMAGE) $(DST)/$(AUDISP)
 	tar --absolute-names -czf ./docker/audit.tar.gz /usr/local/lib/libaudit* /usr/local/lib/libauparse* /usr/local/sbin/au*

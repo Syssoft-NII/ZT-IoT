@@ -43,7 +43,7 @@ $ sudo bash
   # auditctl -D
   # auditctl -l
   # auditd -f -n -s enable >& /dev/null
-  # auditctl -a always,exit -F arch=b64 -S execve,clone,openat
+  # auditctl -a always,exit -F arch=b64 -S execve,clone,exit,exit_group
   
 (4) How to analyze a log file
   process ID 43755の解析例
@@ -83,3 +83,15 @@ https://access.redhat.com/documentation/en/red_hat_enterprise_linux/6/html/secur
 https://access.redhat.com/documentation/ja-jp/red_hat_enterprise_linux/6/html/security_guide/sec-audit_record_types
 
 https://documentation.suse.com/sles/12-SP4/html/SLES-all/cha-audit-comp.html
+
+
+以下のURLはなんだ？
+https://securityonline.info/auditd-attack-mitres-attack-framework/
+https://github.com/bfuzzy/auditd-attack/blob/master/auditd-attack.rules
+
+https://attack.mitre.org/matrices/enterprise/linux/
+
+https://attack.mitre.org/techniques/T1078/
+
+https://listman.redhat.com/archives/linux-audit/
+
