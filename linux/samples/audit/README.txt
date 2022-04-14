@@ -1,10 +1,10 @@
 Testing Audit
 The libaudit-dev package for Ubuntu 20.04 is an old version.
-We should use the latest libaudit.
-	$ sudo apt-get install libaudit-dev
+We should use the latest libaudit instead of "sudo apt-get install libaudit-dev"
 
-(1) How to install libaudit
-$ sudo apt-get install autoconf automake libtool autoconf-doc libtool-doc
+(1.1) How to install libaudit
+$ sudo apt-get update
+$ sudo apt-get install -y autoconf automake libtool autoconf-doc libtool-doc swig
 $ git clone https://github.com/linux-audit/audit-userspace.git
 $ cd audit-userspace
 $ autogen.sh
@@ -13,8 +13,17 @@ $ make
 $ sudo make install
 $ export LD_LIBRARY_PATH=:/usr/local/lib:$LD_LIBRART_PATH
 $ export export MANPATH=:/usr/local/man:$MANPATH
-## For docker
-	$ make dist
+
+(1.2) How to install mosquitto
+$ sudo apt-get install -y libcjson-dev xsltproc
+$ sudo git clone https://github.com/eclipse/mosquitto.git
+$ make
+  # error happens during man page creation.
+$ cd lib
+$ sudo make install
+$ cd lib/cpp
+$ sudo make install
+
 
 (2) How to compile and run the audit-test sample program.
 $ cd test
