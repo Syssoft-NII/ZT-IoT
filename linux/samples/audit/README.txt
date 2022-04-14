@@ -57,7 +57,16 @@ $ sudo bash
    $ /usr/local/etc/audit
 
 (6) docker
-   $ sudo docker run -itd --name myubuntu ubuntu -v /home:/home
+   $ sudo docker run -itd --privileged --cap-add=ALL --pid=host --name mytest -v /mnt2:/remote audit_mqtt
+   $ docker exec -it mytest
+     # auditctl -a always,exit -F arch=b64 -S clone,execve,exit,exit_group
+     # auditd -f -n -s enable -c /usr/local/etc/audit >& /dev/null
+
+   $ docker save audit_mqtt -o audit_mqtt.tar
+   $ docker load -i audit_mqtt.tar
+
+## for docker installation, see
+	https://docs.docker.com/engine/install/ubuntu/
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 - SYSCALL
@@ -77,6 +86,15 @@ SSH
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 $ sudo apt install openssh-server
 $ sudo systemctl status ssh
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+URL
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+mqtt://<host name>[:<port>]
+mqtts://<host name>[:<port>]
+file://<path>
+Options
+   server=mqtt://ubuntu,logfile=file:///tmp/LOG
 
 https://access.redhat.com/documentation/en/red_hat_enterprise_linux/6/html/security_guide/sec-audit_record_types
 

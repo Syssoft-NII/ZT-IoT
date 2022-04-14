@@ -4,19 +4,6 @@
 #include <unistd.h>
 #include <mosquitto.h>
 
-void
-on_message(struct mosquitto *mosq, void *obj, const struct mosquitto_message *message)
-{
-    printf("%s ", message->topic);
-    if (message->payloadlen > 0) {
-        fwrite(message->payload, 1, message->payloadlen, stdout);
-        printf("\n");
-    } else {
-        printf("%s (null)\n", message->topic);
-    }
-    fflush(stdout);
-}
-
 int
 main(int argc, char **argv)
 {
@@ -27,16 +14,20 @@ main(int argc, char **argv)
     int	port = 1883;
     int ret;
 
-    if (argc != 3) {
+    if (argc == 4) {
+	host = argv[1];
+	topic = argv[2]; msg = argv[3];
+    } else if (argc == 3) {
+	topic = argv[1]; msg = argv[2];
+    } else {
 	fprintf(stderr, "%s <topic> <message>\n", argv[0]);
+	fprintf(stderr, "   | <host> <topic> <message>\n");
 	return -1;
     }
-    topic = argv[1];
-    msg = argv[2];
     mosquitto_lib_init();
     mosq = mosquitto_new(NULL, true, NULL);
     if(!mosq) {
-        fprintf(stderr, "Cannot create mosquitto object\n");
+        fprintf(stderr, "Error mosquitto_new()\n");
         mosquitto_lib_cleanup();
         return -1;
     }

@@ -27,15 +27,19 @@ main(int argc, char **argv)
     int	port = 1883;
     int ret;
 
-    if (argc != 2) {
+    if (argc == 3) {
+	host = argv[1]; topic = argv[2];
+    } else if (argc == 2) {
+	topic = argv[1];
+    } else {
 	fprintf(stderr, "%s <topic>\n", argv[0]);
+	fprintf(stderr, "   | <host> <topic>\n");
 	return -1;
     }
-    topic = argv[1];
     mosquitto_lib_init();
     mosq = mosquitto_new(NULL, true, NULL);
     if(!mosq) {
-        fprintf(stderr, "Cannot create mosquitto object\n");
+        fprintf(stderr, "Error mosquitto_new()\n");
         mosquitto_lib_cleanup();
         return -1;
     }

@@ -3,13 +3,21 @@
 #include <unistd.h>
 #include <signal.h>
 #include <string.h>
+#include <strings.h>
+#include <ctype.h>
+#include <errno.h>
 #include <stdarg.h>
-#include "libaudit.h"
-#include "auparse.h"
+#include <libaudit.h>
+#include <auparse.h>
 #include "sysname.h"
 #include "log-field.h"
+#include "comlib.h"
 
-#define DEFAULT_COUNT	300
+#define DEBUG	if (dflag)
+
+#define COM_STDOUT	0
+#define COM_MQTT	1
+
 #define MAX_ARGS	128
 #define MAX_PARAMS	48
 const char	*params_syscall[MAX_PARAMS];
@@ -21,8 +29,11 @@ const char	*cwd;
 const char	*saddr;
 int	npath;
 
+int	cmethod;
+int	dflag, comdflag;
 pid_t	mypid;
 long	count;
+int	msock;
 
 int	execve_argc;
 const char	*execve_args[MAX_ARGS];
@@ -39,6 +50,7 @@ extern int	exec_cmd(char *cmd, char **argv, char *header, char *msg);
 void
 mqtt_publish()
 {
+#if 0
     char	*cmd = "/usr/local/bin/mosquitto_pub";
     argv[0] = "mosquitto_pub";
     argv[1] = "-t";
@@ -46,15 +58,18 @@ mqtt_publish()
     argv[3] = "-l";
     argv[4] = 0;
     exec_cmd(cmd, argv, mheader, mmsg);
-}
-
-void
-mqtt_mkheader(const char *pid)
-{
-    snprintf(mheader, MAX_AUDIT_MESSAGE_LENGTH,
-	     "topic=/IOT/XXX/%s/audit", pid);
-    mlen = 0;
-    return;
+#endif
+    if (mlen > 0) {
+	switch(cmethod) {
+	case COM_STDOUT:
+	    printf("%s = %s\n", mheader, mmsg);
+	    break;
+	case COM_MQTT:
+	    mqtt_pub(mheader, mmsg);
+	    break;
+	}
+	mlen = 0;
+    }
 }
 
 void
@@ -67,6 +82,15 @@ mqtt_mkmsg(const char *fmt, ...)
     return;
 }
 
+void
+mqtt_mkheaderstamp(const char *pid, const au_event_t *evnt)
+{
+    snprintf(mheader, MAX_AUDIT_MESSAGE_LENGTH,
+	     "/IOT/XXX/%s/audit", pid);
+    mlen = 0;
+    mqtt_mkmsg(" %lu.%d:%lu", evnt->sec, evnt->milli, evnt->serial);
+    return;
+}
 
 static void cleanup_params(const char **area)
 {
@@ -137,16 +161,9 @@ static int catch_hup;
 static void hup_handler(int sig)
 {
 
-    count = DEFAULT_COUNT;
     catch_hup = 1;
     printf("SIGHUP is catched. count is now %ld\n", count);
     fflush(stdout);
-}
-
-static void
-print_timestamp(const au_event_t *evnt)
-{
-    printf(" %lu.%d:%lu", evnt->sec, evnt->milli, evnt->serial);
 }
 
 static void
@@ -342,42 +359,41 @@ handle_event(auparse_state_t *au,
 	    break;
 	}
     }
-    printf("EVENT(%ld): nrec(%d)\n", count, nrec);
+    DEBUG {
+	printf("EVENT(%ld): nrec(%d)\n", count, nrec);
+    }
     /*
      * execve system call has the following record
      *	SYSCALL, EXECVE, CWD, PATH, PATH, .. , PROCTITLE
      */
     if (syscall > 0) {
 	int	j;
-	printf("\ttopic=/IoT/XXX/%s/audit =",
-	       params_syscall[PARAM_SYSCALL_PID]);
-	print_timestamp(evnt);
-	printf(" ppid=%s uid=%s gid=%s "
-	       "SYSCALL=%s (%d) success(%s) exit(%s) ",
-	       params_syscall[PARAM_SYSCALL_PPID],
-	       params_syscall[PARAM_SYSCALL_UID],
-	       params_syscall[PARAM_SYSCALL_GID],
-	       sysname[syscall], syscall,
-	       params_syscall[PARAM_SYSCALL_SUCCESS],
-	       params_syscall[PARAM_SYSCALL_EXIT]);
+	mqtt_mkheaderstamp(params_syscall[PARAM_SYSCALL_PID], evnt);
+	mqtt_mkmsg(" ppid=%s uid=%s gid=%s "
+		   "SYSCALL=%s (%d) success(%s) exit(%s) ",
+		   params_syscall[PARAM_SYSCALL_PPID],
+		   params_syscall[PARAM_SYSCALL_UID],
+		   params_syscall[PARAM_SYSCALL_GID],
+		   sysname[syscall], syscall,
+		   params_syscall[PARAM_SYSCALL_SUCCESS],
+		   params_syscall[PARAM_SYSCALL_EXIT]);
 	for (j = 0; j < 4; j++) {
-	    printf(" arg%d(%s)", j, params_syscall[j+PARAM_SYSCALL_A0]);
+	    mqtt_mkmsg(" arg%d(%s)", j, params_syscall[j+PARAM_SYSCALL_A0]);
 	}
-	printf(" npath=%d", npath);
+	mqtt_mkmsg(" npath=%d", npath);
 	for (j = 0; j < npath; j++) {
-	    printf(" PATH=%s", params_paths[j]);
+	    mqtt_mkmsg(" PATH=%s", params_paths[j]);
 	}
-	printf(" saddr=%s", (saddr == NULL ? "none" : saddr));
-	printf(" exec=%s", params_syscall[PARAM_SYSCALL_EXE]);
+	mqtt_mkmsg(" saddr=%s", (saddr == NULL ? "none" : saddr));
+	mqtt_mkmsg(" exec=%s", params_syscall[PARAM_SYSCALL_EXE]);
 	//if (proctitle[0] != 0) { printf(" proctitle=%s", proctitle); }
-	printf(" exec_argc=%d", execve_argc > 0 ? execve_argc : 0);
+	mqtt_mkmsg(" exec_argc=%d", execve_argc > 0 ? execve_argc : 0);
 	//fflush(stdout);
 	if (execve_argc > 0) {
 	    for (j = 0; j < execve_argc; j++) {
-		printf(" arg%d=%s", j, execve_args[j]);
+		mqtt_mkmsg(" arg%d=%s", j, execve_args[j]);
 	    }
 	}
-	printf("\n");
 	/* system call# depends on architecture */
 	if (strcmp("clone", sysname[syscall]) == 0
 	    && params_etc[0] != NULL) {
@@ -388,147 +404,259 @@ handle_event(auparse_state_t *au,
 	switch (syscall) {
 	case -2:
 	/* AUDIT_USER_LOGIN */
-	    printf("\ttopic=/IoT/XXX/%s/audit =",
-		   params_etc[PARAMS_USER_LOGIN_PID]);
-	    print_timestamp(evnt);
-	    printf(" uid=%s auid=%s ses=%s USER_LOGIN subj=%s msg=%s id=%s exe=%s hostname=%s addr=%s terminal=%s res=%s\n",
-		   params_etc[PARAMS_USER_LOGIN_UID],
-		   params_etc[PARAMS_USER_LOGIN_AUID],
-		   params_etc[PARAMS_USER_LOGIN_SES],
-		   params_etc[PARAMS_USER_LOGIN_SUBJ],
-		   params_etc[PARAMS_USER_LOGIN_MSG],
-		   params_etc[PARAMS_USER_LOGIN_ID],
-		   params_etc[PARAMS_USER_LOGIN_EXE],
-		   params_etc[PARAMS_USER_LOGIN_HOSTNAME],
-		   params_etc[PARAMS_USER_LOGIN_ADDR],
-		   params_etc[PARAMS_USER_LOGIN_TERMINAL],
-		   params_etc[PARAMS_USER_LOGIN_RES]);
+	    mqtt_mkheaderstamp(params_etc[PARAMS_USER_LOGIN_PID], evnt);
+	    mqtt_mkmsg(" uid=%s auid=%s ses=%s USER_LOGIN subj=%s msg=%s id=%s exe=%s hostname=%s addr=%s terminal=%s res=%s\n",
+		       params_etc[PARAMS_USER_LOGIN_UID],
+		       params_etc[PARAMS_USER_LOGIN_AUID],
+		       params_etc[PARAMS_USER_LOGIN_SES],
+		       params_etc[PARAMS_USER_LOGIN_SUBJ],
+		       params_etc[PARAMS_USER_LOGIN_MSG],
+		       params_etc[PARAMS_USER_LOGIN_ID],
+		       params_etc[PARAMS_USER_LOGIN_EXE],
+		       params_etc[PARAMS_USER_LOGIN_HOSTNAME],
+		       params_etc[PARAMS_USER_LOGIN_ADDR],
+		       params_etc[PARAMS_USER_LOGIN_TERMINAL],
+		       params_etc[PARAMS_USER_LOGIN_RES]);
 	    break;
 	case -3: /* Single CRED_ACQ or CRED_DISP event */
 	    cred_acq:
-	    printf("\ttopic=/IoT/XXX/%s/audit =",
-		   params_etc[PARAMS_CRED_ACQ_PID]);
-	    print_timestamp(evnt);
-	    printf(" uid=%s auid=%s ses=%s %s subj=%s msg=%s grantors=%s acct=%s exe=%s hostname=%s addr=%s terminal=%s res=%s\n",
-		   params_etc[PARAMS_CRED_ACQ_UID],
-		   params_etc[PARAMS_CRED_ACQ_AUID],
-		   params_etc[PARAMS_CRED_ACQ_SES],
-		   cmd,
-		   params_etc[PARAMS_CRED_ACQ_SUBJ],
-		   params_etc[PARAMS_CRED_ACQ_MSG],
-		   params_etc[PARAMS_CRED_ACQ_GRANT],
-		   params_etc[PARAMS_CRED_ACQ_ACCT],
-		   params_etc[PARAMS_CRED_ACQ_EXE],
-		   params_etc[PARAMS_CRED_ACQ_HOSTNAME],
-		   params_etc[PARAMS_CRED_ACQ_ADDR],
-		   params_etc[PARAMS_CRED_ACQ_TERMINAL],
-		   params_etc[PARAMS_CRED_ACQ_RES]);
+	    mqtt_mkheaderstamp(params_etc[PARAMS_CRED_ACQ_PID], evnt);
+	    mqtt_mkmsg(" uid=%s auid=%s ses=%s %s subj=%s msg=%s grantors=%s acct=%s exe=%s hostname=%s addr=%s terminal=%s res=%s\n",
+		       params_etc[PARAMS_CRED_ACQ_UID],
+		       params_etc[PARAMS_CRED_ACQ_AUID],
+		       params_etc[PARAMS_CRED_ACQ_SES],
+		       cmd,
+		       params_etc[PARAMS_CRED_ACQ_SUBJ],
+		       params_etc[PARAMS_CRED_ACQ_MSG],
+		       params_etc[PARAMS_CRED_ACQ_GRANT],
+		       params_etc[PARAMS_CRED_ACQ_ACCT],
+		       params_etc[PARAMS_CRED_ACQ_EXE],
+		       params_etc[PARAMS_CRED_ACQ_HOSTNAME],
+		       params_etc[PARAMS_CRED_ACQ_ADDR],
+		       params_etc[PARAMS_CRED_ACQ_TERMINAL],
+		       params_etc[PARAMS_CRED_ACQ_RES]);
 	    break;
 	case -4: /* AUDIT_USER_ACCT */
-	    printf("\ttopic=/IoT/XXX/%s/audit =",
-		   params_etc[PARAMS_USER_ACCT_PID]);
-	    print_timestamp(evnt);
-	    printf(" uid=%s auid=%s ses=%s %s subj=%s msg=%s grantors=%s acct=%s exe=%s hostname=%s addr=%s terminal=%s res=%s\n",
-		   params_etc[PARAMS_USER_ACCT_UID],
-		   params_etc[PARAMS_USER_ACCT_AUID],
-		   params_etc[PARAMS_USER_ACCT_SES],
-		   cmd,
-		   params_etc[PARAMS_USER_ACCT_SUBJ],
-		   params_etc[PARAMS_USER_ACCT_MSG],
-		   params_etc[PARAMS_USER_ACCT_GRANT],
-		   params_etc[PARAMS_USER_ACCT_ACCT],
-		   params_etc[PARAMS_USER_ACCT_EXE],
-		   params_etc[PARAMS_USER_ACCT_HOSTNAME],
-		   params_etc[PARAMS_USER_ACCT_ADDR],
-		   params_etc[PARAMS_USER_ACCT_TERMINAL],
-		   params_etc[PARAMS_USER_ACCT_RES]);
+	    mqtt_mkheaderstamp(params_etc[PARAMS_USER_ACCT_PID], evnt);
+	    mqtt_mkmsg(" uid=%s auid=%s ses=%s %s subj=%s msg=%s grantors=%s acct=%s exe=%s hostname=%s addr=%s terminal=%s res=%s\n",
+		       params_etc[PARAMS_USER_ACCT_UID],
+		       params_etc[PARAMS_USER_ACCT_AUID],
+		       params_etc[PARAMS_USER_ACCT_SES],
+		       cmd,
+		       params_etc[PARAMS_USER_ACCT_SUBJ],
+		       params_etc[PARAMS_USER_ACCT_MSG],
+		       params_etc[PARAMS_USER_ACCT_GRANT],
+		       params_etc[PARAMS_USER_ACCT_ACCT],
+		       params_etc[PARAMS_USER_ACCT_EXE],
+		       params_etc[PARAMS_USER_ACCT_HOSTNAME],
+		       params_etc[PARAMS_USER_ACCT_ADDR],
+		       params_etc[PARAMS_USER_ACCT_TERMINAL],
+		       params_etc[PARAMS_USER_ACCT_RES]);
 	    break;
 	case -5: /* AUDIT_LOGIN */
-	    printf("\ttopic=/IoT/XXX/%s/audit =",
-		   params_etc[PARAMS_LOGIN_PID]);
-	    print_timestamp(evnt);
-	    printf(" uid=%s subj=%s old_auid=%s LOGIN auid=%s tty=%s old_ses=%s ses=%s ref=%s\n",
-		   params_etc[PARAMS_LOGIN_UID],
-		   params_etc[PARAMS_LOGIN_SUBJ],
-		   params_etc[PARAMS_LOGIN_OLD_AUID],
-		   params_etc[PARAMS_LOGIN_AUID],
-		   params_etc[PARAMS_LOGIN_TTY],
-		   params_etc[PARAMS_LOGIN_OLD_SES],
-		   params_etc[PARAMS_LOGIN_SES],
-		   params_etc[PARAMS_LOGIN_RES]);
+	    mqtt_mkheaderstamp(params_etc[PARAMS_LOGIN_PID], evnt);
+	    mqtt_mkmsg(" uid=%s subj=%s old_auid=%s LOGIN auid=%s tty=%s old_ses=%s ses=%s ref=%s\n",
+		       params_etc[PARAMS_LOGIN_UID],
+		       params_etc[PARAMS_LOGIN_SUBJ],
+		       params_etc[PARAMS_LOGIN_OLD_AUID],
+		       params_etc[PARAMS_LOGIN_AUID],
+		       params_etc[PARAMS_LOGIN_TTY],
+		       params_etc[PARAMS_LOGIN_OLD_SES],
+		       params_etc[PARAMS_LOGIN_SES],
+		       params_etc[PARAMS_LOGIN_RES]);
 	    break;
 	case -6:
-	    printf("\ttopic=/IoT/XXX/%s/audit =",
-		   params_etc[PARAMS_SERVICE_STARTSTOP_PID]);
-	    print_timestamp(evnt);
-	    printf(" uid=%s auid=%s %s ses=%s subj=%s msg=%s comm=%s exe=%s hostname=%s add=%s terminal=%s res=%s\n",
-		   params_etc[PARAMS_SERVICE_STARTSTOP_UID],
-		   params_etc[PARAMS_SERVICE_STARTSTOP_AUID],
-		   cmd,
-		   params_etc[PARAMS_SERVICE_STARTSTOP_SES],
-		   params_etc[PARAMS_SERVICE_STARTSTOP_SUBJ],
-		   params_etc[PARAMS_SERVICE_STARTSTOP_MSG],
-		   params_etc[PARAMS_SERVICE_STARTSTOP_COMM],
-		   params_etc[PARAMS_SERVICE_STARTSTOP_EXE],
-		   params_etc[PARAMS_SERVICE_STARTSTOP_HOSTNAME],
-		   params_etc[PARAMS_SERVICE_STARTSTOP_ADDR],
-		   params_etc[PARAMS_SERVICE_STARTSTOP_TERMINAL],
-		   params_etc[PARAMS_SERVICE_STARTSTOP_RES]);
+	    mqtt_mkheaderstamp(params_etc[PARAMS_SERVICE_STARTSTOP_PID], evnt);
+	    mqtt_mkmsg(" uid=%s auid=%s %s ses=%s subj=%s msg=%s comm=%s exe=%s hostname=%s add=%s terminal=%s res=%s\n",
+		       params_etc[PARAMS_SERVICE_STARTSTOP_UID],
+		       params_etc[PARAMS_SERVICE_STARTSTOP_AUID],
+		       cmd,
+		       params_etc[PARAMS_SERVICE_STARTSTOP_SES],
+		       params_etc[PARAMS_SERVICE_STARTSTOP_SUBJ],
+		       params_etc[PARAMS_SERVICE_STARTSTOP_MSG],
+		       params_etc[PARAMS_SERVICE_STARTSTOP_COMM],
+		       params_etc[PARAMS_SERVICE_STARTSTOP_EXE],
+		       params_etc[PARAMS_SERVICE_STARTSTOP_HOSTNAME],
+		       params_etc[PARAMS_SERVICE_STARTSTOP_ADDR],
+		       params_etc[PARAMS_SERVICE_STARTSTOP_TERMINAL],
+		       params_etc[PARAMS_SERVICE_STARTSTOP_RES]);
 	    break;
 	case -7:
-	    printf("\ttopic=/IoT/XXX/%s/audit =",
-		   params_etc[PARAMS_DAEMON_START_PID]);
-	    print_timestamp(evnt);
-	    printf(" %s op=%s ver=%s format=%s kernel=%s auid=%s uid=%s ses=%s subj=%s res=%s\n",
+	    mqtt_mkheaderstamp(params_etc[PARAMS_DAEMON_START_PID], evnt);
+	    mqtt_mkmsg(" %s op=%s ver=%s format=%s kernel=%s auid=%s uid=%s ses=%s subj=%s res=%s\n",
 		   cmd,
-		   params_etc[PARAMS_DAEMON_START_OP],
-		   params_etc[PARAMS_DAEMON_START_VER],
-		   params_etc[PARAMS_DAEMON_START_FORMAT],
-		   params_etc[PARAMS_DAEMON_START_KERNEL],
-		   params_etc[PARAMS_DAEMON_START_AUID],
-		   params_etc[PARAMS_DAEMON_START_UID],
-		   params_etc[PARAMS_DAEMON_START_SES],
-		   params_etc[PARAMS_DAEMON_START_SUBJ],
-		   params_etc[PARAMS_DAEMON_START_RES]);
+		       params_etc[PARAMS_DAEMON_START_OP],
+		       params_etc[PARAMS_DAEMON_START_VER],
+		       params_etc[PARAMS_DAEMON_START_FORMAT],
+		       params_etc[PARAMS_DAEMON_START_KERNEL],
+		       params_etc[PARAMS_DAEMON_START_AUID],
+		       params_etc[PARAMS_DAEMON_START_UID],
+		       params_etc[PARAMS_DAEMON_START_SES],
+		       params_etc[PARAMS_DAEMON_START_SUBJ],
+		       params_etc[PARAMS_DAEMON_START_RES]);
 	    break;
 	default:
 	    printf("syscall = %d\n", syscall);
 	    printf("\tUNPROCESSING RAWTEXT=\"%s\"\n", auparse_get_record_text(au));
 	}
     }
+    mqtt_publish();
 ext:
     return;
 }
 
+void
+url_parse(char *cp, char **host, char **proto, int *port)
+{
+    char	*p, *q;
+    /* find ':'  */
+    p = index(cp, ':');
+    if (p) {
+	*p = 0;
+	*proto = p;
+	p += 1;
+    } else {
+	*proto = cp;
+	/* just protocol */
+	return;
+    }
+    if (!strncmp(p, "//", 2)) {
+	p += 2;
+	*host = p;
+	q = index(p, ':');
+	if (q) {
+	    *q = 0;
+	    q += 1;
+	    if (isdigit(*q)) {
+		*port = atoi(q);
+	    }
+	} else { /* just host name */
+	    ;
+	}
+    } else {
+	return;
+    }
+}
+
+/*
+ * Though the plugin configuration file specifies more than two arguments,
+ * Only two arguments are passed by the audit daemon ;-<
+ * Option formats:
+ *	-dFM
+ *		d: debug,
+ *		F: logs written to a file, M: logs via MQTT
+ *	server=<url>,logfile=<url>
+ *		server=<url>
+ *			ex., server=mqtt://ubuntu:1883
+ *			(server=mqtts://ubuntu)
+ *		logfile=<path>
+ *			ex., logfile=/tmp/LOG_audit
+ */
 int
 main(int argc, char **argv)
 {
-    FILE	*fin, *fout;
+    char	*url = NULL;
+    char	*protocol = NULL;
+    char	*host = "localhost";
+    int		port = 1883;
+    char	*logfile = LOG_FILE;
+    FILE	*fout;
     ssize_t	len;
     struct sigaction sa;
+    int	nfds;
+    int	i;
 
-    count = DEFAULT_COUNT; catch_hup = 0;
-    mypid = getpid();
-    /* Register sighandlers */
-    sa.sa_flags = 0;
-    sigemptyset(&sa.sa_mask);
-    /* Set handler for the ones we care about */
+    mypid = getpid(); catch_hup = 0;
+    count = 0; msock = 0; nfds = 1;
+    cmethod = COM_STDOUT; /* default */
+    for (i = 1; i < argc; i++) {
+	if (argv[i][0] == '-') {
+	    int	j = 1;
+	    while(argv[i][j]) {
+		switch (argv[i][j]) {
+		case 'd':
+		    dflag = 1; comdflag = 1;
+		    break;
+		case 'F':
+		    cmethod = COM_STDOUT;
+		    break;
+		case 'M':
+		    cmethod = COM_MQTT;
+		    break;
+		default:
+		    printf("%s: Unknown option: %s\n", argv[0], argv[i]);
+		}
+		j++;
+	    }
+	} else {
+#define ARG_SERVER	"server="
+#define ARG_LOGFILE	"logfile="
+	    char	*nxt;
+	    const char	*cp = argv[i];
+	    size_t	slen = strlen(ARG_SERVER);
+	    size_t	flen = strlen(ARG_LOGFILE);
+	    while (*cp) {
+		if (!strncmp(ARG_SERVER, cp, slen)) {
+		    cp += slen;
+		    nxt = index(cp, ',');
+		    if (nxt) {
+			url = strndup(cp, nxt - cp);
+		    } else {
+			url = strdup(cp);
+		    }
+		    url_parse(url, &host, &protocol, &port);
+		    if (nxt) {
+			cp = nxt + 1;
+		    } else {/* no more string */
+			break;
+		    }
+		} else if (!strncmp(ARG_LOGFILE, cp, flen)) {
+		    cp += flen;
+		    nxt = index(cp, ',');
+		    if (nxt) {
+			logfile = strndup(cp, nxt - cp);
+			cp = nxt + 1;
+		    } else {
+			logfile = strdup(cp);
+			break;
+		    }
+		} else {
+		    break;
+		}
+	    }
+	}
+    }
+    fout = fopen(logfile, "w");
+    if (fout == NULL) {
+	fprintf(stderr, "Cannot open file %s\n", logfile);
+	return -1;
+    }
+    stdout = fout; stderr = fout;
+    printf("args = ");
+    for (i = 0; i < argc; i++) {
+	printf("%s ", argv[i]);
+    }
+    printf("\n");
+    switch (cmethod) {
+    case COM_MQTT:
+	printf("MQTT: server = %s, port = %d, logfile=%s\n", host, port, logfile);
+	msock = mqtt_init(host, port, 60);
+	nfds++;
+	break;
+    case COM_STDOUT:
+	printf("LOGFILE: file=%s\n", logfile);
+	break;
+    default:
+	printf("Unknown communication method: %d\n", cmethod);
+	break;
+    }
+    fflush(stdout);
+    sa.sa_flags = 0; sigemptyset(&sa.sa_mask);
     sa.sa_handler = term_handler;
     sigaction(SIGTERM, &sa, NULL);
     sa.sa_handler = hup_handler;
     sigaction(SIGHUP, &sa, NULL);
 
-    fout = fopen(LOG_FILE, "w");
-    if (fout == NULL) {
-	fprintf(stderr, "Cannot open file %s\n", LOG_FILE);
-	return -1;
-    }
-    fin = fdopen(0, "r");
-    if (fin == NULL) {
-	fprintf(fout, "Cannot open file %s\n", LOG_FILE);
-	return -1;
-    }
-    stdout = fout;
     /* Initialize the auparse library */
     au = auparse_init(AUSOURCE_FEED, 0);
     if (au == NULL) {
@@ -538,20 +666,53 @@ main(int argc, char **argv)
     auparse_set_eoe_timeout(2);
     auparse_add_callback(au, handle_event, NULL, NULL);
     /**/
-    printf("<%d>Now listing.....\n", mypid); fflush(stdout);
-retry:
-    while ((len = read(0, combuf, MAX_AUDIT_MESSAGE_LENGTH)) > 0) {
-	// printf("READ(%ld)==> %s<==READ\n", len, buf); fflush(stdout);
-	if (count > 0) {
-	    auparse_feed(au, combuf, len);
+    DEBUG {
+	switch (cmethod) {
+	case COM_STDOUT:
+	    printf("Logging to stdout...\n"); break;
+	case COM_MQTT:
+	    printf("Sending to MQTT broker...\n"); break;
 	}
-	--count;
     }
-    if (catch_hup) {
-	catch_hup = 0;
-	goto retry;
+    printf("<%d> Now listing.....\n", mypid); fflush(stdout);
+    {
+	fd_set read_mask;
+	struct timeval tv;
+	int	rc;
+
+    loop:
+	tv.tv_sec = 0; tv.tv_usec = 100*1000;
+	FD_ZERO(&read_mask);
+	FD_SET(0, &read_mask); FD_SET(msock, &read_mask);
+	rc = select(nfds, &read_mask, NULL, NULL, &tv);
+	if (rc == 0) { /* timeout */
+	    /* 100 msec polling */
+	    if (cmethod == COM_MQTT) {
+		mqtt_poll();
+	    }
+	    goto loop;
+	} else if (rc < 0) {
+	    printf("select returns %d errno=%d\n", rc, errno);
+	    goto ext;
+	} else {
+	    if (FD_ISSET(0, &read_mask)) {
+		len = read(0, combuf, MAX_AUDIT_MESSAGE_LENGTH);
+		if (len <= 0) goto chk;
+		// printf("READ(%ld)==> %s<==READ\n", len, buf); fflush(stdout);
+		auparse_feed(au, combuf, len);
+		++count;
+	    }
+	}
+    chk:
+	if (catch_hup) {
+	    catch_hup = 0;
+	} else {
+	    goto ext;
+	}
+	goto loop;
     }
+ext:
     printf("EXITING\n");
-    fclose(fout); fclose(fin);
+    fclose(fout);
     return 0;
 }
