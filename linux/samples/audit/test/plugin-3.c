@@ -692,8 +692,9 @@ main(int argc, char **argv)
 	    }
 	    goto loop;
 	} else if (rc < 0) {
-	    printf("select returns %d errno=%d\n", rc, errno);
-	    goto ext;
+	    printf("select returns %d errno=%d catch_hup=%d\n", rc, errno, catch_hup);
+	    perror("\t");
+	    goto chk;
 	} else {
 	    if (FD_ISSET(0, &read_mask)) {
 		len = read(0, combuf, MAX_AUDIT_MESSAGE_LENGTH);
@@ -702,6 +703,7 @@ main(int argc, char **argv)
 		auparse_feed(au, combuf, len);
 		++count;
 	    }
+	    goto loop;
 	}
     chk:
 	if (catch_hup) {

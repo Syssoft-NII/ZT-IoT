@@ -6,7 +6,7 @@ RUN mkdir /remote; \
     sed -i 's/^# *\(en_US.UTF-8\)/\1/' /etc/locale.gen; \
     sed -i 's/^# *\(ja_JP.UTF-8\)/\1/' /etc/locale.gen; \
     locale-gen; \
-    apt install -q vim; \
+    apt install -q vim iputils-ping net-tools; \
     mkdir -p /usr/local/etc/audit
 #
 #

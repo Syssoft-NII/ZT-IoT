@@ -1,0 +1,18 @@
+$ ./mosquitto -c mosquitto.conf
+
+Modified sources
+	#ifdef YITEST
+	read_handle.c	read
+	packet_mosq.c	send
+	net.c		connection
+	net_mosq.c	close
+	config.mk
+	handle_connack.c
+
+packet_mosq.c
+packet__write()
+    while(mosq->current_out_packet) {
+	packet = mosq->current_out_packet;
+252:	write_length = net__write(mosq, &(packet->payload[packet->pos]), packet->to_process);
+
+packet->command

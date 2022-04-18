@@ -2,7 +2,7 @@ LIB=/usr/local/lib
 IMAGE=plugin-3
 AUDISP=plugin-test
 DST=./docker/audit/bin
-all: audit-test regexptest cmdtest plugin plugin-2 plugin-3 selinux mqtt_sub mqtt_pub
+all: audit-test regexptest cmdtest plugin plugin-2 plugin-3 selinux mqtt_sub mqtt_pub user-test
 
 audit-test: sysname.h audit-test.c regexplib.o monlib.o
 	$(CC) -g -o audit-test audit-test.c regexplib.o monlib.o -L$(LIB) -laudit
@@ -22,6 +22,8 @@ mylib.o: mylib.c
 	$(CC) -g -c -o $@ $^
 selinux: selinux.c
 	gcc -o $@ $< -lselinux
+user-test: user-test.c
+	gcc -o $@ $< -laudit
 mqtt_sub: mqtt_sub.c
 	gcc -o $@ $< -lmosquitto
 mqtt_pub: mqtt_pub.c
