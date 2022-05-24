@@ -1,10 +1,4 @@
 CC = cc
-HOSTNAME=$(shell hostname)
-FJCFLAGS =
-ifeq (fe01, $(findstring fe01, $(HOSTNAME)))
-        CC = fccpx
-        FJCFLAGS = -Xg -DK
-endif
 CFLAGS = -Wall -O2 -g -fPIC $(FJCFLAGS)
 LDFLAGS= -shared
 OBJ = hooklib.o
