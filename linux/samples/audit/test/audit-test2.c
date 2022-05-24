@@ -22,10 +22,40 @@ foo(void *f)
     int i;
     printf("Thread is running\n");
     pthread_mutex_lock(&mx);
-    printf("Thread Locked\n");
-    for (i = 0; i < 10; i++) {
-	printf("hello\n");
+    // printf("Thread Locked\n");
+    // st[0] = tick_time();
+    for (i = 0; i < 100; i++) {
+	getpid();
+	/* syscall */
+	/*
+	 *	- getpid()
+	 *	- snprintf(buf, "/tmp/f%d", i);
+	 *	  open(buf, XXX);
+	 *	- snprintf(buf, "/tmp/f%d", i);
+	 */
     }
+#define SYS_GETPID	0
+#define SYS_OPEN	1
+#define SYS_CLOSE	2
+    // et[0] = tick_time();
+    /*
+     * #define MEASURE_1(sysname, func, iter) {
+     *		st[sysname] = tick_time();
+     *		for (i = 0; i < iter; i++) {
+     *			func;
+     *		}
+     *		ed[sysname] = tick_time();
+     * #define MEASURE_2(sysname, func1, func2, iter) {
+     *		st[sysname] = tick_time();
+     *		for (i = 0; i < iter; i++) {
+     *			func1;
+     *			func2;
+     *		}
+     *		ed[sysname] = tick_time();
+     */
+    // MEASURE_1(SYS_GETPID, getpid, 1000)
+    // MEASURE_2(SYS_OPEN, snprintf(buf, "/tmp/f%d", i), open(buf, 0600, 1000)
+    // clock
 }
 
 static inline void
@@ -127,7 +157,7 @@ main(int argc, char **argv)
     //clock();
     for (i = 0; i < iter; i++) {
 	audit_get_reply(fd, &reply, GET_REPLY_BLOCKING, 0);
-	printf("reply.type=0x%x\n", reply.type);
+	//printf("reply.type=0x%x\n", reply.type);
     }
     //clock();
 
