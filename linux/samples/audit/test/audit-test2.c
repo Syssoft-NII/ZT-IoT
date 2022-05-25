@@ -4,12 +4,23 @@
 #include <stdlib.h>
 #include <libaudit.h>
 #include <getopt.h>
+#include <pthread.h>
+#include <fcntl.h>
 #include "regexplib.h"
 #include "sysname.h"
-#include <pthread.h>
+#include "tsc.h"
 
-pthread_mutex_t	mx;
-pthread_t	th;
+#define TIME_APP	0
+#define TIME_AUDIT	1
+#define TIME_MAX	2
+
+static uint64_t	tm_st[TIME_MAX], tm_et[TIME_MAX], hz;
+char	*tm_msg[TIME_MAX] = {
+  "Application",
+  "Audit",
+};
+static pthread_mutex_t	mx;
+static pthread_t	th;
 
 static int	iter = 20;
 static int	verbose = 0;
@@ -19,43 +30,19 @@ static char	path[1024];
 static void*
 foo(void *f)
 {
-    int i;
-    printf("Thread is running\n");
+    int i, fd;
+    printf("Thread is running. iter = %d\n", iter);
     pthread_mutex_lock(&mx);
-    // printf("Thread Locked\n");
-    // st[0] = tick_time();
-    for (i = 0; i < 100; i++) {
+    tm_st[TIME_APP] = tick_time();
+    for (i = 0; i < iter; i++) {
 	getpid();
-	/* syscall */
-	/*
-	 *	- getpid()
-	 *	- snprintf(buf, "/tmp/f%d", i);
-	 *	  open(buf, XXX);
-	 *	- snprintf(buf, "/tmp/f%d", i);
-	 */
     }
-#define SYS_GETPID	0
-#define SYS_OPEN	1
-#define SYS_CLOSE	2
-    // et[0] = tick_time();
-    /*
-     * #define MEASURE_1(sysname, func, iter) {
-     *		st[sysname] = tick_time();
-     *		for (i = 0; i < iter; i++) {
-     *			func;
-     *		}
-     *		ed[sysname] = tick_time();
-     * #define MEASURE_2(sysname, func1, func2, iter) {
-     *		st[sysname] = tick_time();
-     *		for (i = 0; i < iter; i++) {
-     *			func1;
-     *			func2;
-     *		}
-     *		ed[sysname] = tick_time();
-     */
-    // MEASURE_1(SYS_GETPID, getpid, 1000)
-    // MEASURE_2(SYS_OPEN, snprintf(buf, "/tmp/f%d", i), open(buf, 0600, 1000)
-    // clock
+    tm_et[TIME_APP] = tick_time();
+    fd = open("/tmp/123", O_RDWR);
+    if (fd > 0) {
+	close(fd);
+    }
+    printf("Exiting\n");
 }
 
 static inline void
@@ -78,6 +65,13 @@ main(int argc, char **argv)
 #ifdef NONBLOCKING
     fd_set	mask;
 #endif
+
+    hz = tick_helz( 0 );
+    printf("hz(%ld)\n", hz);
+    if (hz == 0) {
+	printf("Cannot obtain CPU frequency\n");
+	exit(-1);
+    }
 
     while ((opt = getopt(argc, argv, "i:v")) != -1) {
 	switch (opt) {
@@ -115,25 +109,9 @@ main(int argc, char **argv)
 	fprintf(stderr, "Cannot allocate an audit rule structure\n");
 	exit(-1);
     }
-    //rc = audit_rule_syscallbyname_data(rule, "all");
-    rc = audit_rule_syscallbyname_data(rule, "openat");
-    if (rc != 0) {
-	fprintf(stderr, "audit_rule_syscallbyname_data(\"openaat\") fails: %d\n", rc);
-	exit(-1);
-    }
     rc = audit_rule_syscallbyname_data(rule, "getpid");
     if (rc != 0) {
 	fprintf(stderr, "audit_rule_syscallbyname_data(\"getpid\") fails: %d\n", rc);
-	exit(-1);
-    }
-    rc = audit_rule_syscallbyname_data(rule, "close");
-    if (rc != 0) {
-	fprintf(stderr, "audit_rule_syscallbyname_data(\"close\") fails: %d\n", rc);
-	exit(-1);
-    }
-    rc = audit_rule_syscallbyname_data(rule, "write");
-    if (rc != 0) {
-	fprintf(stderr, "audit_rule_syscallbyname_data() fails: %d\n", rc);
 	exit(-1);
     }
     /* 
@@ -153,19 +131,22 @@ main(int argc, char **argv)
 	fprintf(stderr, "audit_set_enabled() fails: %d\n", rc);
 	exit(-1);
     }
-#ifdef NONBLOCKING
-    FD_ZERO(&mask);
-    FD_SET(fd, &mask);
-#endif
-
+    regex_init(MAX_AUDIT_MESSAGE_LENGTH);
     pthread_mutex_unlock(&mx);
-    //clock();
-    for (i = 0; i < iter; i++) {
+    tm_st[TIME_AUDIT] = tick_time();
+//    for (i = 0; i < iter * 10; i++) {
+    while (1) {
 	audit_get_reply(fd, &reply, GET_REPLY_BLOCKING, 0);
-	//printf("reply.type=0x%x\n", reply.type);
+	if (reply.type == AUDIT_SYSCALL) {
+	    reply.message[reply.len] = 0;
+	    rc = msg_syscall(reply.message, &rslt);
+	    printf("[%d]\tSYSCALL=%ld = %s\n", i, rslt, sysname[rslt]);
+	}
+	if (verbose) {
+	    printf("reply.type=0x%x\n", reply.type);
+	}
     }
-    //clock();
-
+    tm_et[TIME_AUDIT] = tick_time();
     /*
      * finalizing
      */
@@ -181,5 +162,10 @@ main(int argc, char **argv)
     }
     free(rule);
     audit_close(fd);
+    for (i = 0; i < TIME_MAX; i++) {
+	printf("%s: %12.9f msec\n",
+	       tm_msg[i],
+	       (double)(tm_et[i])/(double)(hz/1000) - (double)(tm_st[i])/(double)(hz/1000));
+    }
     return 0;
 }
