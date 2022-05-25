@@ -1,0 +1,5 @@
+## cross environment
+#CROSS_HOME=/home/ishikawa/ztiot/toolchains/aarch64/bin
+#CROSS_PREFIX=aarch64-none-linux-gnu-$(CROSS_HOME)
+CC = $(CROSS_PREFIX)gcc
+

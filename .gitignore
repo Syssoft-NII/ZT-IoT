@@ -32,8 +32,8 @@
 *.exe
 *.out
 *.app
-*.i*86
-*.x86_64
+####*.i*86
+####*.x86_64
 *.hex
 
 # Debug files
