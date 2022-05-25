@@ -14,7 +14,7 @@ all: audit-test audit-test2 regexptest cmdtest plugin plugin-2 plugin-3 selinux 
 audit-test: sysname.h audit-test.c regexplib.o monlib.o
 	$(CC) -g -o audit-test audit-test.c regexplib.o monlib.o -L$(LIB) -laudit
 audit-test2: sysname.h audit-test2.c regexplib.o monlib.o
-	$(CC) -g -o audit-test2 audit-test2.c regexplib.o monlib.o -L$(LIB) -laudit -lpthread
+	$(CC) -g -O2 -o audit-test2 audit-test2.c regexplib.o monlib.o -L$(LIB) -laudit -lpthread
 regexptest: regexptest.o regexplib.o
 	$(CC) -g -o regexptest regexptest.o regexplib.o
 cmdtest: cmdtest.o mylib.o

@@ -6,6 +6,9 @@
 #include <getopt.h>
 #include <pthread.h>
 #include <fcntl.h>
+#define _GNU_SOURCE
+#include <sched.h>
+#include <linux/sched.h>
 #include "regexplib.h"
 #include "sysname.h"
 #include "tsc.h"
@@ -24,25 +27,32 @@ static pthread_t	th;
 
 static int	iter = 20;
 static int	verbose = 0;
+static int	noaudit = 0;
 static char	buf[MAX_AUDIT_MESSAGE_LENGTH];
 static char	path[1024];
+static volatile int	isReady;
 
 static void*
 foo(void *f)
 {
     int i, fd;
-    printf("Thread is running. iter = %d\n", iter);
-    pthread_mutex_lock(&mx);
+    printf("Cloned-thread is running. pid=%d tid=%d iter = %d\n", getpid(), gettid(), iter); fflush(stdout);
+    //pthread_mutex_lock(&mx);
+    printf("foo: isReady = %d\n", isReady); fflush(stdout);
+    while (isReady == 0);
+    printf("foo: isReady = %d\n", isReady); fflush(stdout);
     tm_st[TIME_APP] = tick_time();
     for (i = 0; i < iter; i++) {
-	getpid();
+	//getpid();
+	gettid();
     }
     tm_et[TIME_APP] = tick_time();
     fd = open("/tmp/123", O_RDWR);
     if (fd > 0) {
 	close(fd);
     }
-    printf("Exiting\n");
+    printf("foo: Exiting\n");
+    exit(0);
 }
 
 static inline void
@@ -58,8 +68,8 @@ verbose_print(struct audit_reply *reply)
 int
 main(int argc, char **argv)
 {
-    int	i, opt, rc, fd, pid;
-    long	rslt, rslt2, rslt3;
+    int	i, opt, rc, fd, pid, cnt;
+    long	rslt1, rslt2;
     struct audit_rule_data *rule;
     struct audit_reply reply;
 #ifdef NONBLOCKING
@@ -73,7 +83,7 @@ main(int argc, char **argv)
 	exit(-1);
     }
 
-    while ((opt = getopt(argc, argv, "i:v")) != -1) {
+    while ((opt = getopt(argc, argv, "i:vn")) != -1) {
 	switch (opt) {
 	case 'i':
 	    iter = atoi(optarg);
@@ -81,12 +91,14 @@ main(int argc, char **argv)
 	case 'v':
 	    verbose = 1;
 	    break;
+	case 'n':
+	    noaudit = 1;
+	    break;
 	}
     }
 
     pthread_mutex_init(&mx, 0);
     pthread_mutex_lock(&mx);
-    pthread_create(&th, NULL, foo, 0);
 
     /* A process may access the audit kernel facility via netlink */
     fd = audit_open();
@@ -95,6 +107,7 @@ main(int argc, char **argv)
 	exit(-1);
     }
     pid = getpid();
+    printf("AUDIT PROCESS ID = %d\n", pid);
     /* This process becomes audit daemon process */
     rc = audit_set_pid(fd, pid, WAIT_YES);
     if (rc <= 0) {
@@ -109,7 +122,8 @@ main(int argc, char **argv)
 	fprintf(stderr, "Cannot allocate an audit rule structure\n");
 	exit(-1);
     }
-    rc = audit_rule_syscallbyname_data(rule, "getpid");
+    //rc = audit_rule_syscallbyname_data(rule, "getpid");
+    rc = audit_rule_syscallbyname_data(rule, "gettid");
     if (rc != 0) {
 	fprintf(stderr, "audit_rule_syscallbyname_data(\"getpid\") fails: %d\n", rc);
 	exit(-1);
@@ -131,20 +145,47 @@ main(int argc, char **argv)
 	fprintf(stderr, "audit_set_enabled() fails: %d\n", rc);
 	exit(-1);
     }
+    isReady = 0;
+    // pthread_create(&th, NULL, foo, 0);
+    {
+	void	*stack = malloc(16*1024);
+	int	flags = CLONE_NEWPID
+			| CLONE_FS | CLONE_IO | CLONE_VM
+			| CLONE_NEWUTS;
+	printf("Stack =%p\n", stack);
+	clone(foo, stack, flags, NULL);
+    }
     regex_init(MAX_AUDIT_MESSAGE_LENGTH);
     pthread_mutex_unlock(&mx);
+    cnt = 0;
+    isReady = 1;
+    if (noaudit) {
+	sleep(2);
+	goto skip;
+    }
     tm_st[TIME_AUDIT] = tick_time();
-//    for (i = 0; i < iter * 10; i++) {
     while (1) {
 	audit_get_reply(fd, &reply, GET_REPLY_BLOCKING, 0);
 	if (reply.type == AUDIT_SYSCALL) {
 	    reply.message[reply.len] = 0;
-	    rc = msg_syscall(reply.message, &rslt);
-	    printf("[%d]\tSYSCALL=%ld = %s\n", i, rslt, sysname[rslt]);
+	    rc = msg_pid(reply.message, &rslt1);
+	    rc = msg_syscall(reply.message, &rslt2);
+	    if (rslt2 == 178) {
+		cnt++;
+		if (cnt == iter) break;
+	    }
+	    if (verbose) {
+		printf("[%d]\tpid(%ld) SYSCALL=%ld = %s\n", cnt, rslt1, rslt2, sysname[rslt2]);
+	    }
+	} else {
+	    if (verbose) {
+		printf("reply.type=0x%x\n", reply.type);
+	    }
 	}
 	if (verbose) {
-	    printf("reply.type=0x%x\n", reply.type);
+	    fflush(stdout);
 	}
+
     }
     tm_et[TIME_AUDIT] = tick_time();
     /*
@@ -155,17 +196,18 @@ main(int argc, char **argv)
     if (rc <= 0) {
 	fprintf(stderr, "audit_set_enabled fails: %d\n", rc);
     }
+skip:
     /* delete the audit rule */
     rc = audit_delete_rule_data(fd, rule, AUDIT_FILTER_EXIT, AUDIT_ALWAYS);
     if (rc <= 0) {
 	fprintf(stderr, "audit_delete_rule_data fails: %d\n", rc);
     }
-    free(rule);
+    // free(rule);
     audit_close(fd);
     for (i = 0; i < TIME_MAX; i++) {
-	printf("%s: %12.9f msec\n",
+	printf("%s: %12.9f msec in %d iteration\n",
 	       tm_msg[i],
-	       (double)(tm_et[i])/(double)(hz/1000) - (double)(tm_st[i])/(double)(hz/1000));
+	       (double)(tm_et[i])/(double)(hz/1000) - (double)(tm_st[i])/(double)(hz/1000), iter);
     }
     return 0;
 }
