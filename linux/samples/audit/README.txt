@@ -48,7 +48,7 @@ $ sudo bash
   $ sudo bash
   # export LD_LIBRARY_PATH=:/usr/local/lib
   # auditd -f -n -s enable -c /usr/local/etc/audit >& /dev/null
-  # auditctl -a always,exit -S allp
+  # auditctl -a always,exit -S all
   # auditctl -D
   # auditctl -l
   # auditd -f -n -s enable >& /dev/null

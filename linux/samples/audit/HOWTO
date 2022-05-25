@@ -1,0 +1,7 @@
+$docker load -i audit_mqtt.tar 
+$ docker images
+REPOSITORY    TAG       IMAGE ID       CREATED          SIZE
+audit_mqtt    latest    6800db3a8749   26 minutes ago   151MB
+
+$ docker run -itd --privileged --cap-add=ALL --pid=host --name mytest audit_mqtt
+
