@@ -1,3 +1,10 @@
+#
+#
+#ARCH=x86_64
+#ARCH=aarch64
+#
+ARCH ?= $(shell arch)
+include mkdef.$(ARCH)
 LIB=/usr/local/lib
 IMAGE=plugin-3
 AUDISP=plugin-test

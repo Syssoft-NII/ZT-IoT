@@ -6,7 +6,7 @@
 
 #define DEBUG	 if (comdflag)
 
-int	comdflag;
+extern int	comdflag;
 
 static struct mosquitto *mosq_hndl;
 static int	mosq_init = 0;
