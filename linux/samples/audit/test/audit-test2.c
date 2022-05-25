@@ -118,12 +118,17 @@ main(int argc, char **argv)
     //rc = audit_rule_syscallbyname_data(rule, "all");
     rc = audit_rule_syscallbyname_data(rule, "openat");
     if (rc != 0) {
-	fprintf(stderr, "audit_rule_syscallbyname_data() fails: %d\n", rc);
+	fprintf(stderr, "audit_rule_syscallbyname_data(\"openaat\") fails: %d\n", rc);
 	exit(-1);
     }
-    rc = audit_rule_syscallbyname_data(rule, "open");
+    rc = audit_rule_syscallbyname_data(rule, "getpid");
     if (rc != 0) {
-	fprintf(stderr, "audit_rule_syscallbyname_data() fails: %d\n", rc);
+	fprintf(stderr, "audit_rule_syscallbyname_data(\"getpid\") fails: %d\n", rc);
+	exit(-1);
+    }
+    rc = audit_rule_syscallbyname_data(rule, "close");
+    if (rc != 0) {
+	fprintf(stderr, "audit_rule_syscallbyname_data(\"close\") fails: %d\n", rc);
 	exit(-1);
     }
     rc = audit_rule_syscallbyname_data(rule, "write");
