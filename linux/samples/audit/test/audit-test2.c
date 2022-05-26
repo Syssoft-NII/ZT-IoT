@@ -229,8 +229,10 @@ main(int argc, char **argv)
 	fprintf(stderr, "Cannot allocate an audit rule structure\n");
 	exit(-1);
     }
+    /* marker */
+    rc = audit_rule_syscallbyname_data(rule, MEASURE_FINISH_SYSNAME);
+    /**/
     rc = audit_rule_syscallbyname_data(rule, "getpid");
-    rc = audit_rule_syscallbyname_data(rule, "gettid");
     if (rc != 0) {
 	fprintf(stderr, "audit_rule_syscallbyname_data(\"getpid\") fails: %d\n", rc);
 	exit(-1);
