@@ -15,7 +15,13 @@
 #include "sysname.h"
 #include "tsc.h"
 
+/* gettid() is the Linux specific system call */
+extern int	gettid();
+
 #define VERBOSE	if (verbose)
+
+#define MEASURE_FINISH_SYSNAME	"gettid"
+#define MEASURE_FINISH_SYSCALL	{ gettid(); }
 
 #define SYS_GETID	0
 #define SYS_OPEN_CLOSE	1
@@ -29,7 +35,7 @@
 
 static uint64_t	tm_st[TIME_MAX], tm_et[TIME_MAX], hz;
 char	*tm_msg[TIME_MAX] = {
-  "gettid",
+  "getpid",
 //  "open&close",
   "Audit",
 };
@@ -46,6 +52,7 @@ static int	noaudit = 0;
 	    sysfunc;	\
 	}	\
 	tm_et[syscl] = tick_time();	\
+	MEASURE_FINISH_SYSCALL;		\
 }
 
 static void*
@@ -54,13 +61,14 @@ appl(void *f)
     int i;
 
     VERBOSE {
-	printf("Cloned-thread is running. stack = %p pid=%d tid=%d iter = %d\n", &i, getpid(), gettid(), iter); fflush(stdout);
+	printf("Cloned-thread is running. stack = %p pid=%d iter = %d\n", &i, getpid(), iter); fflush(stdout);
     }
     /* waiting for unlock by main */
     pthread_mutex_lock(&mx1);
     switch (syscl) {
     case SYS_GETID:
-	MEASURE_SYSCALL(SYS_GETID, gettid());
+	//MEASURE_SYSCALL(SYS_GETID, gettid());
+	MEASURE_SYSCALL(SYS_GETID, getpid());
 	break;
 #if 0
     case SYS_OPEN_CLOSE:
@@ -85,12 +93,6 @@ appl(void *f)
 	fprintf(stderr, "%s: internal error\n", __func__);
 	break;
     }
-#if 0
-    fd = open("/tmp/123", O_RDWR);
-    if (fd > 0) {
-	close(fd);
-    }
-#endif
     /* */
     VERBOSE {
 	printf("%s: Exiting\n", __func__); fflush(stdout);
@@ -99,6 +101,21 @@ appl(void *f)
     /* waiting for unlock by main */
     pthread_mutex_lock(&mx3);
     exit(0);
+}
+
+static int
+search_syscall(char *snam)
+{
+    int	snum;
+    for (snum = 0; snum < SYSCALL_MAX; snum++) {
+	if (!strcmp(snam, sysname[snum])) {
+	    goto find;
+	}
+    }
+    /* not found */
+    snum = -1;
+find:
+    return snum;
 }
 
 static void
@@ -125,24 +142,30 @@ verbose_print(struct audit_reply *reply)
 int
 main(int argc, char **argv)
 {
-    int		i, opt, rc, fd, pid, cnt;
-    int		flags = CLONE_NEWPID
+    int		i, opt, rc, fd, pid, npkt, cnt, mrkr;
+    int		flags = CLONE_VM
+	// CLONE_NEWPID
 	// | CLONE_FS | CLONE_IO
-			| CLONE_VM
-			| CLONE_NEWUTS;
+	// | CLONE_NEWUTS
+		;
     long	rslt1, rslt2;
     void	*stack;
     struct audit_rule_data *rule;
     struct audit_reply reply;
 
     hz = tick_helz( 0 );
-    printf("hz(%ld)\n", hz);
     if (hz == 0) {
 	printf("Cannot obtain CPU frequency\n");
 	exit(-1);
     }
+    mrkr = search_syscall(MEASURE_FINISH_SYSNAME);
+    if (mrkr < 0) {
+	printf("The %s system call is not avalabe on your system.\n",
+	       MEASURE_FINISH_SYSNAME);
+	exit(-1);
+    }
 
-    while ((opt = getopt(argc, argv, "i:vnc")) != -1) {
+    while ((opt = getopt(argc, argv, "i:vns")) != -1) {
 	switch (opt) {
 	case 'i':
 	    iter = atoi(optarg);
@@ -154,9 +177,10 @@ main(int argc, char **argv)
 	    noaudit = 1;
 	    break;
 	case 's':
-	    syscl = atoi(optarg);
-	    if (syscl > SYS_MAX) {
-		fprintf(stderr, "-s option must not be larger than %d (system call number)\n", SYS_MAX);
+	    i = search_syscall(optarg);
+	    if (i < -1) {
+		fprintf(stderr, "%s system call is not supported\n", optarg);
+		exit(-1);
 	    }
 	}
     }
@@ -171,6 +195,8 @@ main(int argc, char **argv)
     VERBOSE {
 	printf("AUDIT PROCESS ID = %d, Stack = %p\n", pid,
 	       STACK_TOP(stack));
+	printf("\thz(%ld)\n", hz);
+	printf("\tThe \"%s\" system call (%d) as the marker\n", MEASURE_FINISH_SYSNAME, mrkr);
     }
     clone(appl, STACK_TOP(stack), flags, NULL);
 
@@ -203,7 +229,7 @@ main(int argc, char **argv)
 	fprintf(stderr, "Cannot allocate an audit rule structure\n");
 	exit(-1);
     }
-    //rc = audit_rule_syscallbyname_data(rule, "getpid");
+    rc = audit_rule_syscallbyname_data(rule, "getpid");
     rc = audit_rule_syscallbyname_data(rule, "gettid");
     if (rc != 0) {
 	fprintf(stderr, "audit_rule_syscallbyname_data(\"getpid\") fails: %d\n", rc);
@@ -232,20 +258,21 @@ main(int argc, char **argv)
      * starting foo function
      */
     pthread_mutex_unlock(&mx1);
-    cnt = 0;
+    npkt = 0; cnt = 0;
     tm_st[SYS_AUDIT] = tick_time();
     while (1) {
 	audit_get_reply(fd, &reply, GET_REPLY_BLOCKING, 0);
+	npkt++;
 	if (reply.type == AUDIT_SYSCALL) {
 	    reply.message[reply.len] = 0;
 	    rc = msg_pid(reply.message, &rslt1);
 	    rc = msg_syscall(reply.message, &rslt2);
-	    if (rslt2 == 178 /* gettid */) {
-		cnt++;
-		if (cnt == iter) break;
-	    }
 	    VERBOSE {
 		printf("[%d]\tpid(%ld) SYSCALL=%ld = %s\n", cnt, rslt1, rslt2, sysname[rslt2]);
+	    }
+	    cnt++;
+	    if (rslt2 == mrkr) {
+		break;
 	    }
 	} else {
 	    VERBOSE {
@@ -275,7 +302,7 @@ main(int argc, char **argv)
 skip:
 #define UNIT	"usec"
 #define SCALE	1000000
-    printf("# iteration = %d, %s/syscall, total\n", iter, UNIT);
+    printf("# iteration = %d, %s/syscall, total: npkt=%d\n", iter, UNIT, npkt);
     for (i = 0; i < TIME_MAX; i++) {
 	uint64_t	tclk = tm_et[i] - tm_st[i];
 	double		ttim = (double)tclk/(double)(hz/SCALE);
