@@ -25,10 +25,18 @@ extern int	gettid();
 
 #define SYS_GETID	0
 #define SYS_OPEN_CLOSE	1
-//#define SYS_MAX		1
-#define SYS_MAX		0
-#define SYS_AUDIT	(SYS_MAX + 1)
-#define TIME_MAX	(SYS_MAX + 2)
+#define SYS_MAX		2
+#define SYS_AUDIT	SYS_MAX
+#define TIME_MAX	(SYS_MAX + 1)
+
+struct syscalls {
+    int		ncall;
+    const char	*sysname[3];
+};
+struct syscalls systab[SYS_MAX] = {
+    { 1, {"getpid", NULL, NULL} },
+    { 2, {"openat", "close", NULL} }
+};
 
 #define STACK_SIZE	(32*1024)
 #define STACK_TOP(addr)	((addr) + STACK_SIZE)
@@ -36,7 +44,7 @@ extern int	gettid();
 static uint64_t	tm_st[TIME_MAX], tm_et[TIME_MAX], hz;
 char	*tm_msg[TIME_MAX] = {
   "getpid",
-//  "open&close",
+  "open&close",
   "Audit",
 };
 static pthread_mutex_t	mx1, mx2, mx3;
@@ -70,15 +78,13 @@ appl(void *f)
 	//MEASURE_SYSCALL(SYS_GETID, gettid());
 	MEASURE_SYSCALL(SYS_GETID, getpid());
 	break;
-#if 0
     case SYS_OPEN_CLOSE:
     {
-	int	fd;
 	char	fname[1024];
 	snprintf(fname, 1024, "/tmp/atest-%d", getpid());
 	tm_st[syscl] = tick_time();
 	for (i = 0; i < iter; i++) {
-	    int	fd = open(fname, O_RDWR|O_CREAT);
+	    int	fd = open(fname, O_RDWR|O_CREAT, 0666);
 	    if (fd < 0) {
 		printf("Cannot open file %s\n", fname);
 		break;
@@ -86,9 +92,10 @@ appl(void *f)
 	    close(fd);
 	}
 	tm_et[syscl] = tick_time();
+	MEASURE_FINISH_SYSCALL;
+	unlink(fname);
 	break;
     }
-#endif
     default:
 	fprintf(stderr, "%s: internal error\n", __func__);
 	break;
@@ -143,6 +150,7 @@ int
 main(int argc, char **argv)
 {
     int		i, opt, rc, fd, pid, npkt, cnt, mrkr;
+    int		err = 0;
     int		flags = CLONE_VM
 	// CLONE_NEWPID
 	// | CLONE_FS | CLONE_IO
@@ -165,8 +173,15 @@ main(int argc, char **argv)
 	exit(-1);
     }
 
-    while ((opt = getopt(argc, argv, "i:vns")) != -1) {
+    while ((opt = getopt(argc, argv, "i:vnse:")) != -1) {
 	switch (opt) {
+	case 'e':
+	    syscl = atoi(optarg);
+	    if (syscl >= SYS_MAX) {
+		fprintf(stderr, "-e option must be smaller than %d\n", SYS_MAX);
+		exit(-1);
+	    }
+	    break;
 	case 'i':
 	    iter = atoi(optarg);
 	    break;
@@ -200,6 +215,7 @@ main(int argc, char **argv)
     }
     clone(appl, STACK_TOP(stack), flags, NULL);
 
+    npkt = 0;
     if (noaudit) {
 	/* starting foo function */
 	pthread_mutex_unlock(&mx1);
@@ -219,7 +235,8 @@ main(int argc, char **argv)
     rc = audit_set_pid(fd, pid, WAIT_YES);
     if (rc <= 0) {
 	fprintf(stderr, "The process %d cannot become an audit daemon\n", pid);
-	exit(-1);
+	err = 1;
+	goto err2;
     }
     /* The man page of audit_rule_create_data() is not written.
      * It allocates a memory area using malloc(), and thus, it should be
@@ -227,15 +244,20 @@ main(int argc, char **argv)
     rule = audit_rule_create_data();
     if (rule == NULL) {
 	fprintf(stderr, "Cannot allocate an audit rule structure\n");
-	exit(-1);
+	err = 1;
+	goto err2;
     }
     /* marker */
     rc = audit_rule_syscallbyname_data(rule, MEASURE_FINISH_SYSNAME);
     /**/
-    rc = audit_rule_syscallbyname_data(rule, "getpid");
-    if (rc != 0) {
-	fprintf(stderr, "audit_rule_syscallbyname_data(\"getpid\") fails: %d\n", rc);
-	exit(-1);
+    for (i = 0; i < systab[syscl].ncall; i++) {
+	printf("systab[i]: %s\n",  systab[syscl].sysname[i]);
+	rc = audit_rule_syscallbyname_data(rule, systab[syscl].sysname[i]);
+	if (rc != 0) {
+	    fprintf(stderr, "audit_rule_syscallbyname_data(\"%s\") fails: %d\n", systab[syscl].sysname[i], rc);
+	    err = 1;
+	    goto err1;
+	}
     }
     /* 
      * Adding a new audit rule.
@@ -260,7 +282,7 @@ main(int argc, char **argv)
      * starting foo function
      */
     pthread_mutex_unlock(&mx1);
-    npkt = 0; cnt = 0;
+    cnt = 0;
     tm_st[SYS_AUDIT] = tick_time();
     while (1) {
 	audit_get_reply(fd, &reply, GET_REPLY_BLOCKING, 0);
@@ -299,12 +321,31 @@ main(int argc, char **argv)
     if (rc <= 0) {
 	fprintf(stderr, "audit_delete_rule_data fails: %d\n", rc);
     }
+err1:
     free(rule);
+err2:
     audit_close(fd);
+    if (err) {
+	fprintf(stderr, "Error exit\n");
+	exit(-1);
+    }
 skip:
 #define UNIT	"usec"
 #define SCALE	1000000
-    printf("# iteration = %d, %s/syscall, total: npkt=%d\n", iter, UNIT, npkt);
+    printf("# iteration = %d, syscalls/1iter = %d,  %s/syscall, total: npkt=%d\n", iter, systab[syscl].ncall, UNIT, npkt);
+    {
+	uint64_t	tclk = tm_et[syscl] - tm_st[syscl];
+	double		ttim = (double)tclk/(double)(hz/SCALE);
+	/* application */
+	printf("%s, %12.9f, %12.9f\n",
+	       tm_msg[syscl], (ttim/(double)iter)/systab[syscl].ncall, ttim);
+	/* audit */
+	tclk = tm_et[SYS_AUDIT] - tm_st[SYS_AUDIT];
+	ttim = (double)tclk/(double)(hz/SCALE);
+	printf("%s, %12.9f, %12.9f\n",
+	       tm_msg[SYS_AUDIT], ttim/(double)iter, ttim);
+    }
+#if 0
     for (i = 0; i < TIME_MAX; i++) {
 	uint64_t	tclk = tm_et[i] - tm_st[i];
 	double		ttim = (double)tclk/(double)(hz/SCALE);
@@ -312,6 +353,7 @@ skip:
 	printf("%s, %12.9f, %12.9f\n",
 	       tm_msg[i], ttim/(double)iter, ttim);
     }
+#endif
     /* signal to foo */
     pthread_mutex_unlock(&mx3);
     return 0;

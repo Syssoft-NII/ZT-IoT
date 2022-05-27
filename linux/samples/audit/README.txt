@@ -7,7 +7,7 @@ $ sudo apt-get update
 $ sudo apt-get install -y autoconf automake libtool autoconf-doc libtool-doc swig
 $ git clone https://github.com/linux-audit/audit-userspace.git
 $ cd audit-userspace
-$ autogen.sh
+$ ./autogen.sh
 $ ./configure --disable-zos-remote --with-aarch64
 $ make
 $ sudo make install
