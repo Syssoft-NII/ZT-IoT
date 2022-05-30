@@ -43,6 +43,9 @@ struct syscalls systab[SYS_MAX] = {
 #define STACK_SIZE	(32*1024)
 #define STACK_TOP(addr)	((addr) + STACK_SIZE)
 
+#ifdef MEASURE_PERCALL
+static uint64_t	ptm_st[10000], ptm_et[10000], hz;
+#endif
 static uint64_t	tm_st[TIME_MAX], tm_et[TIME_MAX], hz;
 char	*tm_msg[TIME_MAX] = {
   "getpid",
@@ -60,6 +63,16 @@ static int	verbose = 0;
 static int	noaudit = 0;
 static int	header = 0;
 
+#ifdef MEASURE_PERCALL
+#define MEASURE_SYSCALL(syscl, sysfunc)	{	\
+	for (i = 0; i < iter; i++) {	\
+            ptm_st[i] = tick_time();	\
+	    sysfunc;	\
+	    ptm_et[i] = tick_time();	\
+	}	\
+	MEASURE_FINISH_SYSCALL;		\
+}
+#else
 #define MEASURE_SYSCALL(syscl, sysfunc)	{	\
         tm_st[syscl] = tick_time();	\
 	for (i = 0; i < iter; i++) {	\
@@ -68,6 +81,7 @@ static int	header = 0;
 	tm_et[syscl] = tick_time();	\
 	MEASURE_FINISH_SYSCALL;		\
 }
+#endif
 
 static void*
 appl(void *f)
@@ -137,6 +151,10 @@ find:
 static void
 init_workarea()
 {
+#ifdef MEASURE_PERCALL
+    memset(ptm_st, 0, sizeof(ptm_st));
+    memset(ptm_et, 0, sizeof(ptm_et));
+#endif
     memset(tm_st, 0, sizeof(tm_st));
     memset(tm_st, 0, sizeof(tm_et));
     pthread_mutex_init(&mx1, 0);
@@ -363,11 +381,22 @@ skip:
 	printf("# iteration = %d, syscalls/1iter = %d,  %s/syscall, total: npkt=%d\n", iter, systab[syscl].ncall, UNIT, npkt);
     }
     {
-	uint64_t	tclk = tm_et[syscl] - tm_st[syscl];
-	double		ttim = (double)tclk/(double)(hz/SCALE);
+	uint64_t	tclk;
+	double		ttim;
 	/* application */
-	printf("%s, %12.9f, %12.9f\n",
-	       tm_msg[syscl], (ttim/(double)iter)/systab[syscl].ncall, ttim);
+#ifdef MEASURE_PERCALL
+	for (i = 0; i < iter; i++) {
+	    tclk = ptm_et[i] - ptm_st[i];
+	    ttim = (double)tclk/(((double)hz)/(double)SCALE);
+	    printf("%s, %12.9f, %12.9f, %ld\n",
+	       tm_msg[syscl], (double)ttim/systab[syscl].ncall, ttim, tclk);
+	}
+#else
+	tclk = tm_et[syscl] - tm_st[syscl];
+	ttim = (double)tclk/(((double)hz)/(double)SCALE);
+	printf("%s, %12.9f, %12.9f, %ld\n",
+	       tm_msg[syscl], (ttim/(double)iter)/systab[syscl].ncall, ttim, tclk);
+#endif 
 	if (!noaudit) {
 	    /* audit */
 	    tclk = tm_et[SYS_AUDIT] - tm_st[SYS_AUDIT];
