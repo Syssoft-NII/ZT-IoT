@@ -24,8 +24,9 @@ extern int	gettid();
 #define MEASURE_FINISH_SYSCALL	{ gettid(); }
 
 #define SYS_GETID	0
-#define SYS_OPEN_CLOSE	1
-#define SYS_MAX		2
+#define SYS_GETUID	1
+#define SYS_OPEN_CLOSE	2
+#define SYS_MAX		3
 #define SYS_AUDIT	SYS_MAX
 #define TIME_MAX	(SYS_MAX + 1)
 
@@ -35,6 +36,7 @@ struct syscalls {
 };
 struct syscalls systab[SYS_MAX] = {
     { 1, {"getpid", NULL, NULL} },
+    { 1, {"getuid", NULL, NULL} },
     { 2, {"openat", "close", NULL} }
 };
 
@@ -44,6 +46,7 @@ struct syscalls systab[SYS_MAX] = {
 static uint64_t	tm_st[TIME_MAX], tm_et[TIME_MAX], hz;
 char	*tm_msg[TIME_MAX] = {
   "getpid",
+  "getuid",
   "open&close",
   "Audit",
 };
@@ -51,8 +54,11 @@ static pthread_mutex_t	mx1, mx2, mx3;
 
 static int	iter = 20;	/* default */
 static int	syscl = 0;	/* default */
+static int	mrkr;
+static struct audit_rule_data *rule;
 static int	verbose = 0;
 static int	noaudit = 0;
+static int	header = 0;
 
 #define MEASURE_SYSCALL(syscl, sysfunc)	{	\
         tm_st[syscl] = tick_time();	\
@@ -77,6 +83,9 @@ appl(void *f)
     case SYS_GETID:
 	//MEASURE_SYSCALL(SYS_GETID, gettid());
 	MEASURE_SYSCALL(SYS_GETID, getpid());
+	break;
+    case SYS_GETUID:
+	MEASURE_SYSCALL(SYS_GETUID, getuid());
 	break;
     case SYS_OPEN_CLOSE:
     {
@@ -126,14 +135,99 @@ find:
 }
 
 static void
-init_mx()
+init_workarea()
 {
+    memset(tm_st, 0, sizeof(tm_st));
+    memset(tm_st, 0, sizeof(tm_et));
     pthread_mutex_init(&mx1, 0);
     pthread_mutex_init(&mx2, 0);
     pthread_mutex_init(&mx3, 0);
     pthread_mutex_lock(&mx1);
     pthread_mutex_lock(&mx2);
     pthread_mutex_lock(&mx3);
+}
+
+static int
+init_audit()
+{
+    int	fd, pid, rc, i;
+
+    pid = getpid();
+    fd = audit_open();
+    if (fd < 0) {
+	perror("audit_open: ");
+	exit(-1);
+    }
+    /* This process becomes audit daemon process */
+    rc = audit_set_pid(fd, pid, WAIT_YES);
+    if (rc <= 0) {
+	fprintf(stderr, "The process %d cannot become an audit daemon\n", pid);
+	goto err3;
+    }
+    /* The man page of audit_rule_create_data() is not written.
+     * It allocates a memory area using malloc(), and thus, it should be
+     * deallocated by free() */
+    rule = audit_rule_create_data();
+    if (rule == NULL) {
+	fprintf(stderr, "Cannot allocate an audit rule structure\n");
+	goto err2;
+    }
+    /* marker */
+    rc = audit_rule_syscallbyname_data(rule, MEASURE_FINISH_SYSNAME);
+    /**/
+    for (i = 0; i < systab[syscl].ncall; i++) {
+	//printf("systab[i]: %s\n",  systab[syscl].sysname[i]);
+	rc = audit_rule_syscallbyname_data(rule, systab[syscl].sysname[i]);
+	if (rc != 0) {
+	    fprintf(stderr, "audit_rule_syscallbyname_data(\"%s\") fails: %d\n", systab[syscl].sysname[i], rc);
+	    goto err2;
+	}
+    }
+    /* 
+     * Adding a new audit rule.
+     *   The return value of audit_dd_rule_data function is seq #, > 0 
+     *   See __audit_send() function in audit-userspace/lib/netlink.c
+     */
+    rc = audit_add_rule_data(fd, rule, AUDIT_FILTER_EXIT, AUDIT_ALWAYS);
+    if (rc <= 0) {
+	fprintf(stderr, "audit_add_rule_data() fails: %d\n", rc);
+	goto err3;
+    }
+
+    /* Enabling the audit system to capture system calls */
+    rc = audit_set_enabled(fd, 1);
+    if (rc <= 0) {
+	fprintf(stderr, "audit_set_enabled() fails: %d\n", rc);
+	goto err2;
+    }
+
+    regex_init(MAX_AUDIT_MESSAGE_LENGTH);
+err1:
+    return fd;
+err2:
+    free(rule);
+err3:
+    audit_close(fd);
+    fd = -1;
+    goto err1;
+}
+
+static void
+finalize_audit(int fd)
+{
+    int rc;
+    /* disable the audit sysytem */
+    rc = audit_set_enabled(fd, 0);
+    if (rc <= 0) {
+	fprintf(stderr, "audit_set_enabled fails: %d\n", rc);
+    }
+    /* delete the audit rule */
+    rc = audit_delete_rule_data(fd, rule, AUDIT_FILTER_EXIT, AUDIT_ALWAYS);
+    if (rc <= 0) {
+	fprintf(stderr, "audit_delete_rule_data fails: %d\n", rc);
+    }
+    free(rule);
+    audit_close(fd);
 }
 
 static inline void
@@ -149,8 +243,7 @@ verbose_print(struct audit_reply *reply)
 int
 main(int argc, char **argv)
 {
-    int		i, opt, rc, fd, pid, npkt, cnt, mrkr;
-    int		err = 0;
+    int		i, rc, opt, fd, npkt, cnt;
     int		flags = CLONE_VM
 	// CLONE_NEWPID
 	// | CLONE_FS | CLONE_IO
@@ -158,7 +251,6 @@ main(int argc, char **argv)
 		;
     long	rslt1, rslt2;
     void	*stack;
-    struct audit_rule_data *rule;
     struct audit_reply reply;
 
     hz = tick_helz( 0 );
@@ -166,14 +258,8 @@ main(int argc, char **argv)
 	printf("Cannot obtain CPU frequency\n");
 	exit(-1);
     }
-    mrkr = search_syscall(MEASURE_FINISH_SYSNAME);
-    if (mrkr < 0) {
-	printf("The %s system call is not avalabe on your system.\n",
-	       MEASURE_FINISH_SYSNAME);
-	exit(-1);
-    }
 
-    while ((opt = getopt(argc, argv, "i:vnse:")) != -1) {
+    while ((opt = getopt(argc, argv, "hi:vnse:")) != -1) {
 	switch (opt) {
 	case 'e':
 	    syscl = atoi(optarg);
@@ -191,6 +277,9 @@ main(int argc, char **argv)
 	case 'n':
 	    noaudit = 1;
 	    break;
+	case 'h':
+	    header = 1;
+	    break;
 	case 's':
 	    i = search_syscall(optarg);
 	    if (i < -1) {
@@ -200,15 +289,15 @@ main(int argc, char **argv)
 	}
     }
 
-    init_mx();
     stack = malloc(STACK_SIZE);
     if (stack == NULL) {
 	fprintf(stderr, "Cannot allocate stack memory\n");
 	exit(-1);
     }
-    pid = getpid();
+    memset(stack, 0, STACK_SIZE);
+    init_workarea();
     VERBOSE {
-	printf("AUDIT PROCESS ID = %d, Stack = %p\n", pid,
+	printf("AUDIT PROCESS ID = %d, Stack = %p\n", getpid(),
 	       STACK_TOP(stack));
 	printf("\thz(%ld)\n", hz);
 	printf("\tThe \"%s\" system call (%d) as the marker\n", MEASURE_FINISH_SYSNAME, mrkr);
@@ -223,63 +312,18 @@ main(int argc, char **argv)
 	pthread_mutex_lock(&mx2);
 	goto skip;
     }
-    /* 
-     * A process may access the audit kernel facility via netlink 
-     */
-    fd = audit_open();
-    if (fd < 0) {
-	perror("audit_open: ");
+    mrkr = search_syscall(MEASURE_FINISH_SYSNAME);
+    if (mrkr < 0) {
+	printf("The %s system call is not avalabe on your system.\n",
+	       MEASURE_FINISH_SYSNAME);
 	exit(-1);
-    }
-    /* This process becomes audit daemon process */
-    rc = audit_set_pid(fd, pid, WAIT_YES);
-    if (rc <= 0) {
-	fprintf(stderr, "The process %d cannot become an audit daemon\n", pid);
-	err = 1;
-	goto err2;
-    }
-    /* The man page of audit_rule_create_data() is not written.
-     * It allocates a memory area using malloc(), and thus, it should be
-     * deallocated by free() */
-    rule = audit_rule_create_data();
-    if (rule == NULL) {
-	fprintf(stderr, "Cannot allocate an audit rule structure\n");
-	err = 1;
-	goto err2;
-    }
-    /* marker */
-    rc = audit_rule_syscallbyname_data(rule, MEASURE_FINISH_SYSNAME);
-    /**/
-    for (i = 0; i < systab[syscl].ncall; i++) {
-	printf("systab[i]: %s\n",  systab[syscl].sysname[i]);
-	rc = audit_rule_syscallbyname_data(rule, systab[syscl].sysname[i]);
-	if (rc != 0) {
-	    fprintf(stderr, "audit_rule_syscallbyname_data(\"%s\") fails: %d\n", systab[syscl].sysname[i], rc);
-	    err = 1;
-	    goto err1;
-	}
     }
     /* 
-     * Adding a new audit rule.
-     *   The return value of audit_dd_rule_data function is seq #, > 0 
-     *   See __audit_send() function in audit-userspace/lib/netlink.c
+     * This process may access the audit kernel facility via netlink 
      */
-    rc = audit_add_rule_data(fd, rule, AUDIT_FILTER_EXIT, AUDIT_ALWAYS);
-    if (rc <= 0) {
-	fprintf(stderr, "audit_add_rule_data() fails: %d\n", rc);
-	exit(-1);
-    }
-
-    /* Enabling the audit system to capture system calls */
-    rc = audit_set_enabled(fd, 1);
-    if (rc <= 0) {
-	fprintf(stderr, "audit_set_enabled() fails: %d\n", rc);
-	exit(-1);
-    }
-    regex_init(MAX_AUDIT_MESSAGE_LENGTH);
-    
+    fd = init_audit();
     /*
-     * starting foo function
+     * starting the appl() function
      */
     pthread_mutex_unlock(&mx1);
     cnt = 0;
@@ -311,39 +355,26 @@ main(int argc, char **argv)
     /*
      * finalizing
      */
-    /* disable the audit sysytem */
-    rc = audit_set_enabled(fd, 0);
-    if (rc <= 0) {
-	fprintf(stderr, "audit_set_enabled fails: %d\n", rc);
-    }
-    /* delete the audit rule */
-    rc = audit_delete_rule_data(fd, rule, AUDIT_FILTER_EXIT, AUDIT_ALWAYS);
-    if (rc <= 0) {
-	fprintf(stderr, "audit_delete_rule_data fails: %d\n", rc);
-    }
-err1:
-    free(rule);
-err2:
-    audit_close(fd);
-    if (err) {
-	fprintf(stderr, "Error exit\n");
-	exit(-1);
-    }
+    finalize_audit(fd);
 skip:
 #define UNIT	"usec"
 #define SCALE	1000000
-    printf("# iteration = %d, syscalls/1iter = %d,  %s/syscall, total: npkt=%d\n", iter, systab[syscl].ncall, UNIT, npkt);
+    if (header) {
+	printf("# iteration = %d, syscalls/1iter = %d,  %s/syscall, total: npkt=%d\n", iter, systab[syscl].ncall, UNIT, npkt);
+    }
     {
 	uint64_t	tclk = tm_et[syscl] - tm_st[syscl];
 	double		ttim = (double)tclk/(double)(hz/SCALE);
 	/* application */
 	printf("%s, %12.9f, %12.9f\n",
 	       tm_msg[syscl], (ttim/(double)iter)/systab[syscl].ncall, ttim);
-	/* audit */
-	tclk = tm_et[SYS_AUDIT] - tm_st[SYS_AUDIT];
-	ttim = (double)tclk/(double)(hz/SCALE);
-	printf("%s, %12.9f, %12.9f\n",
-	       tm_msg[SYS_AUDIT], ttim/(double)iter, ttim);
+	if (!noaudit) {
+	    /* audit */
+	    tclk = tm_et[SYS_AUDIT] - tm_st[SYS_AUDIT];
+	    ttim = (double)tclk/(double)(hz/SCALE);
+	    printf("%s, %12.9f, %12.9f\n",
+		   tm_msg[SYS_AUDIT], ttim/(double)iter, ttim);
+	}
     }
 #if 0
     for (i = 0; i < TIME_MAX; i++) {

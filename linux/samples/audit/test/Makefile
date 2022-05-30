@@ -15,7 +15,7 @@ all: audit-test audit-test2 regexptest cmdtest plugin plugin-2 plugin-3 mqtt_sub
 audit-test: sysname.h audit-test.c regexplib.o monlib.o
 	$(CC) -g -o audit-test audit-test.c regexplib.o monlib.o -L$(LIB) -laudit
 audit-test2: sysname.h audit-test2.c regexplib.o monlib.o
-	$(CC) -Wall -g -O2 -o audit-test2 audit-test2.c regexplib.o monlib.o -L$(LIB) -laudit -lpthread
+	$(CC) -Wall -g -O3 -o audit-test2 audit-test2.c regexplib.o monlib.o -L$(LIB) -laudit -lpthread
 regexptest: regexptest.o regexplib.o
 	$(CC) -g -o regexptest regexptest.o regexplib.o
 cmdtest: cmdtest.o mylib.o
@@ -50,3 +50,8 @@ sysname.incl:
 
 clean:
 	rm -f *.o audit-test audit-test2 regexptest cmdtest plugin plugin-2 plugin-3 selinux mqtt_sub mqtt_pub user-test sysname.incl
+
+#
+#
+run-audit-test2:
+	sh run_task.sh 5 ./audit-test2 -i 1000 -e 1 -n
