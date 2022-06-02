@@ -133,12 +133,32 @@ static inline uint64_t tick_helz(double *p_helz)
 #include <time.h>	/* for nanosleep() */
 #include <stdio.h>	/* for printf() */
 #include <stdlib.h>
+#include <sys/types.h>
+#include <unistd.h>
+#include <string.h>
+#define _GNU_SOURCE
+#define __USE_GNU
+#include <sched.h>
 
 int main(int argc, char *argv[])
 {
     struct timespec ts = { .tv_sec = 0, .tv_nsec = 10000, };
     int		i;
     uint64_t	st, et, hz;
+    cpu_set_t   mask;
+    unsigned    cpu, node;
+
+    CPU_ZERO(&mask);
+    sched_getaffinity(getpid(), sizeof(cpu_set_t), &mask);
+    printf("Core Affinity:\n");
+    for (i = 0; i < CPU_SETSIZE; i++) {
+        if (CPU_ISSET(i, &mask)) {
+            printf("\tCORE#%d ", i);
+        }
+    }
+    printf("\n");
+    getcpu(&cpu, &node);
+    printf("Running Core: Core#%d on Node#%d\n", cpu, node);
 
     hz = tick_helz( 0 );
     printf("hz(%ld)\n", hz);

@@ -5,12 +5,13 @@
 #include <string.h>
 #include <libaudit.h>
 #include <getopt.h>
-#include <pthread.h>
 #include <fcntl.h>
 #define _GNU_SOURCE
 #define __USE_GNU
 #include <sched.h>
+#include <pthread.h>
 #include <linux/sched.h>
+#include <math.h>
 #include "regexplib.h"
 #include "sysname.h"
 #include "tsc.h"
@@ -42,18 +43,19 @@ struct syscalls systab[SYS_MAX] = {
 
 #define STACK_SIZE	(32*1024)
 #define STACK_TOP(addr)	((addr) + STACK_SIZE)
+static pthread_mutex_t	mx1, mx2, mx3;
 
 #ifdef MEASURE_PERCALL
-static uint64_t	ptm_st[10000], ptm_et[10000], hz;
-#endif
+static uint64_t	ptm_st[3][10000], ptm_et[3][10000], hz;
+#else
 static uint64_t	tm_st[TIME_MAX], tm_et[TIME_MAX], hz;
-char	*tm_msg[TIME_MAX] = {
-  "getpid",
-  "getuid",
-  "open&close",
-  "Audit",
+#endif
+static uint64_t	aud_st, aud_et;
+char	*tm_msg[TIME_MAX][3] = {
+    { "getpid", NULL, NULL},
+    {"getuid", NULL, NULL},
+    {"open", "close", NULL},
 };
-static pthread_mutex_t	mx1, mx2, mx3;
 
 static int	iter = 20;	/* default */
 static int	syscl = 0;	/* default */
@@ -66,9 +68,9 @@ static int	header = 0;
 #ifdef MEASURE_PERCALL
 #define MEASURE_SYSCALL(syscl, sysfunc)	{	\
 	for (i = 0; i < iter; i++) {	\
-            ptm_st[i] = tick_time();	\
+            ptm_st[0][i] = tick_time();	\
 	    sysfunc;	\
-	    ptm_et[i] = tick_time();	\
+	    ptm_et[0][i] = tick_time();	\
 	}	\
 	MEASURE_FINISH_SYSCALL;		\
 }
@@ -83,7 +85,91 @@ static int	header = 0;
 }
 #endif
 
-static void*
+#ifdef MEASURE_PERCALL
+#define MEASURE_OPEN_CLOSE(syscl) {		\
+	char	fname[1024];	\
+	snprintf(fname, 1024, "/tmp/atest-%d", getpid());	\
+	for (i = 0; i < iter; i++) {	\
+	    int	fd;	\
+	    ptm_st[0][i] = tick_time();	\
+	    fd = open(fname, O_RDWR|O_CREAT, 0666);	\
+	    ptm_et[0][i] = tick_time();			\
+	    if (fd < 0) {	\
+		printf("Cannot open file %s\n", fname);	\
+		break;	\
+	    }	\
+	    ptm_st[1][i] = tick_time();		\
+	    close(fd);	\
+	    ptm_et[1][i] = tick_time();	\
+	}	\
+	MEASURE_FINISH_SYSCALL;	\
+	unlink(fname);	\
+    }
+#else
+#define MEASURE_OPEN_CLOSE(syscl) {		\
+	char	fname[1024];			\
+	snprintf(fname, 1024, "/tmp/atest-%d", getpid());	\
+	tm_st[syscl] = tick_time();	\
+	for (i = 0; i < iter; i++) {	\
+	    int	fd = open(fname, O_RDWR|O_CREAT, 0666);	\
+	    if (fd < 0) {	\
+		printf("Cannot open file %s\n", fname);	\
+		break;	\
+	    }	\
+	    close(fd);	\
+	}	\
+	tm_et[syscl] = tick_time();	\
+	MEASURE_FINISH_SYSCALL;	\
+	unlink(fname);	\
+    }
+#endif
+
+#ifdef MEASURE_PERCALL
+#define MEASURE_OPEN_FUNC_CLOSE(func, rval, syscl) {	\
+	char	fname[1024];	\
+	snprintf(fname, 1024, "/tmp/atest-%d", getpid());	\
+	for (i = 0; i < iter; i++) {	\
+	    int	fd, rc;		\
+	    ptm_st[i] = tick_time();	\
+	    fd = open(fname, O_RDWR|O_CREAT, 0666);	\
+	    if (fd < 0) {	\
+		printf("Cannot open file %s\n", fname);	\
+		break;	\
+	    }	\
+	    rc = func;	\
+	    if (rc != rval) {	\
+		printf("return value of %s is not %d\n", #func, rc, rval); \
+	    }	\
+	    close(fd);	\
+	    ptm_et[i] = tick_time();	\
+	}	\
+	MEASURE_FINISH_SYSCALL;	\
+	unlink(fname);	\
+    }
+#else
+#endif
+
+static void
+show_coreinfo()
+{
+    int	i;
+    cpu_set_t   mask;
+    unsigned cpu, node;
+    
+    CPU_ZERO(&mask);
+    sched_getaffinity(getpid(), sizeof(cpu_set_t), &mask);
+    printf("Core Affinity:\n");
+    for (i = 0; i < CPU_SETSIZE; i++) {
+        if (CPU_ISSET(i, &mask)) {
+            printf("\tCORE#%d ", i);
+        }
+    }
+    printf("\n");
+    getcpu(&cpu, &node);
+    printf("Running Core: Core#%d on Node#%d\n", cpu, node);
+}
+
+static int
 appl(void *f)
 {
     int i;
@@ -102,23 +188,16 @@ appl(void *f)
 	MEASURE_SYSCALL(SYS_GETUID, getuid());
 	break;
     case SYS_OPEN_CLOSE:
+	MEASURE_OPEN_CLOSE(SYS_OPEN_CLOSE);
+	break;
+#if 0
+    case SYS_OPEN_WRITE_CLOSE:
     {
-	char	fname[1024];
-	snprintf(fname, 1024, "/tmp/atest-%d", getpid());
-	tm_st[syscl] = tick_time();
-	for (i = 0; i < iter; i++) {
-	    int	fd = open(fname, O_RDWR|O_CREAT, 0666);
-	    if (fd < 0) {
-		printf("Cannot open file %s\n", fname);
-		break;
-	    }
-	    close(fd);
-	}
-	tm_et[syscl] = tick_time();
-	MEASURE_FINISH_SYSCALL;
-	unlink(fname);
+	char	ch = 0;
+	MEASURE_OPEN_CLOSE(write(fd, &ch, 1), SYS_OPEN_CLOSE);
 	break;
     }
+#endif
     default:
 	fprintf(stderr, "%s: internal error\n", __func__);
 	break;
@@ -131,6 +210,7 @@ appl(void *f)
     /* waiting for unlock by main */
     pthread_mutex_lock(&mx3);
     exit(0);
+    return 0;
 }
 
 static int
@@ -154,9 +234,10 @@ init_workarea()
 #ifdef MEASURE_PERCALL
     memset(ptm_st, 0, sizeof(ptm_st));
     memset(ptm_et, 0, sizeof(ptm_et));
-#endif
+#else
     memset(tm_st, 0, sizeof(tm_st));
     memset(tm_st, 0, sizeof(tm_et));
+#endif
     pthread_mutex_init(&mx1, 0);
     pthread_mutex_init(&mx2, 0);
     pthread_mutex_init(&mx3, 0);
@@ -258,6 +339,7 @@ verbose_print(struct audit_reply *reply)
     }
 }
 
+
 int
 main(int argc, char **argv)
 {
@@ -315,6 +397,7 @@ main(int argc, char **argv)
     memset(stack, 0, STACK_SIZE);
     init_workarea();
     VERBOSE {
+	show_coreinfo();
 	printf("AUDIT PROCESS ID = %d, Stack = %p\n", getpid(),
 	       STACK_TOP(stack));
 	printf("\thz(%ld)\n", hz);
@@ -345,7 +428,7 @@ main(int argc, char **argv)
      */
     pthread_mutex_unlock(&mx1);
     cnt = 0;
-    tm_st[SYS_AUDIT] = tick_time();
+    aud_st = tick_time();
     while (1) {
 	audit_get_reply(fd, &reply, GET_REPLY_BLOCKING, 0);
 	npkt++;
@@ -369,7 +452,7 @@ main(int argc, char **argv)
 	    fflush(stdout);
 	}
     }
-    tm_et[SYS_AUDIT] = tick_time();
+    aud_et = tick_time();
     /*
      * finalizing
      */
@@ -381,29 +464,73 @@ skip:
 	printf("# iteration = %d, syscalls/1iter = %d,  %s/syscall, total: npkt=%d\n", iter, systab[syscl].ncall, UNIT, npkt);
     }
     {
+	int	l;
 	uint64_t	tclk;
 	double		ttim;
 	/* application */
 #ifdef MEASURE_PERCALL
-	for (i = 0; i < iter; i++) {
-	    tclk = ptm_et[i] - ptm_st[i];
-	    ttim = (double)tclk/(((double)hz)/(double)SCALE);
-	    printf("%s, %12.9f, %12.9f, %ld\n",
-	       tm_msg[syscl], (double)ttim/systab[syscl].ncall, ttim, tclk);
+	if (verbose) {
+	    for (l = 0; l < systab[syscl].ncall; l++)  {
+		for (i = 0; i < iter; i++) {
+		    tclk = ptm_et[l][i] - ptm_st[l][i];
+		    ttim = (double)tclk/(((double)hz)/(double)SCALE);
+		    printf("%s, %12.9f, %12.9f, %ld\n",
+			   tm_msg[syscl][l], (double)ttim/systab[syscl].ncall, ttim, tclk);
+		}
+	    }
+	} else {
+	    uint64_t	ptm_max, ptm_min;
+	    double	avg, dev, stdev;
+	    unsigned	cpu, node;
+	    for (l = 0; l < systab[syscl].ncall; l++) {
+		/* skipping the first call */
+		ttim = 0;
+		tclk = ptm_et[l][0] - ptm_st[l][0];
+		ptm_max = 0; ptm_min = (uint64_t) -1LL;
+		for (i = 1; i < iter; i++) {
+		    tclk = ptm_et[l][i] - ptm_st[l][i];
+		    ttim += (double)tclk/(((double)hz)/(double)SCALE);
+		    ptm_max = tclk > ptm_max ? tclk : ptm_max;
+		    ptm_min = tclk < ptm_min ? tclk : ptm_min;
+		}
+		avg = (ttim/(double)(iter-1))/(double)systab[syscl].ncall;
+		dev = 0;
+		for (i = 1; i < iter; i++) {
+		    double	dclk = (ptm_et[l][i] - ptm_st[l][i]) - avg;
+		    dev += dclk * dclk;
+		}
+		dev /= (double)(iter-1);
+		stdev = sqrt(dev);
+		getcpu(&cpu, &node);
+		printf("#syscall, avg without 1st, total without 1st, 1st, "
+		       "max, min, stdev, core#, node#\n");
+		printf("%s, %12.9f, %12.9f, %ld, %ld, %ld, %e, %d, %d\n",
+		       tm_msg[syscl][l], avg, ttim, ptm_et[l][0] - ptm_st[l][0],
+		       ptm_max, ptm_min, stdev, cpu, node);
+	    }
 	}
+    }
 #else
 	tclk = tm_et[syscl] - tm_st[syscl];
 	ttim = (double)tclk/(((double)hz)/(double)SCALE);
-	printf("%s, %12.9f, %12.9f, %ld\n",
-	       tm_msg[syscl], (ttim/(double)iter)/systab[syscl].ncall, ttim, tclk);
-#endif 
-	if (!noaudit) {
-	    /* audit */
-	    tclk = tm_et[SYS_AUDIT] - tm_st[SYS_AUDIT];
-	    ttim = (double)tclk/(double)(hz/SCALE);
-	    printf("%s, %12.9f, %12.9f\n",
-		   tm_msg[SYS_AUDIT], ttim/(double)iter, ttim);
+	{
+	    char	buf[1024];
+	    size_t	rem = 1024, off = 0, len;
+	    for (l = 0; l < systab[syscl].ncall; l++) {
+		len = snprintf(buf + off, rem, "%s ", tm_msg[syscl][l]);
+		rem -= len; off += len;
+	    }
+	    printf("%s, %12.9f, %12.9f, %ld\n",
+		   buf, (ttim/(double)iter)/systab[syscl].ncall, ttim, tclk);
+	    
 	}
+    }
+#endif 
+    if (!noaudit) {
+	/* audit */
+	uint64_t tclk = aud_et - aud_st;
+	double	 ttim = (double)tclk/(double)(hz/SCALE);
+	printf("Audit, %12.9f, %12.9f\n", ttim/(double)iter, ttim);
     }
 #if 0
     for (i = 0; i < TIME_MAX; i++) {
