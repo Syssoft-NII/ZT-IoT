@@ -103,6 +103,22 @@ static inline uint64_t tick_helz_auto(void)
     asm volatile("mrs %0, cntfrq_el0" : "=r" (helz));
     return helz;
 }
+
+#if 0
+static inline uint64_t tick_status(void)
+{
+    uint32_t cnd = 0;
+    asm volatile("mrs %0, cntv_ctl_el0" : "=r" (cnd));
+    return cnd;
+}
+static inline uint64_t tick_status2(void)
+{
+    uint32_t off = 0;
+    asm volatile("mrs %0, cntvoff_el2" : "=r" (off));
+    return off;
+}
+#endif
+
 #else
 
 static inline uint64_t tick_helz_auto(void)
@@ -130,6 +146,22 @@ static inline uint64_t tick_helz(double *p_helz)
 #ifdef	STANDALONE_TICK
 
 /* SAMPLE CODE */
+/*
+ *      e.g.,
+ *         $ ./sample -v -i 17 -f mytest_17
+ *        mytest_17_cnt.csv and mytest_17_tim.csv will be generated.
+ *         $ octave
+ *           > load mytest_17_tim.csv
+ *           > plot (mytest_17_tim, "+")
+ *        or
+ *         $  gnuplot
+ *           > set xlabel "trials"
+ *           > set ylabel "msec"
+ *           > unset key
+ *           > set terminal png ####  jpeg
+ *           > set output "mytest_17_tim.png" ### "mytest_17_tim.jpeg"
+ *           > plot "mytest_17_tim.csv"
+ */
 #include <time.h>	/* for nanosleep() */
 #include <stdio.h>	/* for printf() */
 #include <stdlib.h>
@@ -139,24 +171,77 @@ static inline uint64_t tick_helz(double *p_helz)
 #define _GNU_SOURCE
 #define __USE_GNU
 #include <sched.h>
+#include <linux/limits.h>
+
+#define DEFAULT_ITER    (1<<4)
+#define DEFAULT_NTRIES  1000
+#define MAX_NTRIES      100000
+static uint64_t counters[MAX_NTRIES];
+static int verbose = 0;
+static char     fbuf[PATH_MAX];
 
 int main(int argc, char *argv[])
 {
     struct timespec ts = { .tv_sec = 0, .tv_nsec = 10000, };
-    int		i;
+    int		opt, i;
     uint64_t	st, et, hz;
     cpu_set_t   mask;
     unsigned    cpu, node;
+    uint32_t    iter = DEFAULT_ITER;
+    uint32_t    ntries = DEFAULT_NTRIES;
+    FILE        *fp_cnt = NULL;
+    FILE        *fp_tim = NULL;
 
-    CPU_ZERO(&mask);
-    sched_getaffinity(getpid(), sizeof(cpu_set_t), &mask);
-    printf("Core Affinity:\n");
-    for (i = 0; i < CPU_SETSIZE; i++) {
-        if (CPU_ISSET(i, &mask)) {
-            printf("\tCORE#%d ", i);
+    while ((opt = getopt(argc, argv, "f:i:n:vf")) != -1) {
+        switch (opt) {
+        case 'f':
+            snprintf(fbuf, PATH_MAX, "%s_cnt.csv", optarg);
+            fp_cnt = fopen(fbuf, "w+");
+            if (fp_cnt == NULL) {
+                fprintf(stderr, "Cannot open file: %s\n", fbuf);
+            }
+            snprintf(fbuf, PATH_MAX, "%s_tim.csv", optarg);
+            fp_tim = fopen(fbuf, "w+");
+            if (fp_tim == NULL) {
+                fprintf(stderr, "Cannot open file: %s\n", fbuf);
+            }
+            break;
+        case 'i':
+            i = atoi(optarg);
+            if (i > 32) {
+                i = 31;
+            }
+            iter = (1 << i);
+            break;
+        case 'n':
+            ntries = atoi(optarg);
+            if (ntries > MAX_NTRIES) {
+                ntries = MAX_NTRIES;
+            }
+            break;
+        case 'v':
+            verbose = 1;
+            break;
+        default:
+            printf("Unknown option = -%c\n", opt);
         }
     }
-    printf("\n");
+    if (verbose) {
+        printf("work load iteration: %u, #trials: %u\n", iter, ntries);
+        CPU_ZERO(&mask);
+        sched_getaffinity(getpid(), sizeof(cpu_set_t), &mask);
+        printf("Core Affinity:\n");
+        for (i = 0; i < CPU_SETSIZE; i++) {
+            if (CPU_ISSET(i, &mask)) {
+                printf("\tCORE#%d ", i);
+            }
+        }
+        printf("\n");
+#if 0
+        printf("Condition: %ld\n", tick_status());
+        printf("Condition2: %ld\n", tick_status2());
+#endif
+    }
     getcpu(&cpu, &node);
     printf("Running Core: Core#%d on Node#%d\n", cpu, node);
 
@@ -176,6 +261,39 @@ int main(int argc, char *argv[])
         printf("\t\t start: %12.9f end: %12.9f\n",
                (double)(st)/(double)(hz), (double)(et)/(double)(hz));
 
+    }
+    printf("st=%016ld\n", st);
+    printf("et=%016ld\n", et);
+    {
+        uint32_t        i, j;
+        uint64_t        count = 0;
+        uint64_t        mx, mn;
+        double          scale = 1000;
+
+        memset(counters, 0, sizeof(counters));
+        for (i = 0; i < ntries; i++) {
+            for (j = 0; j < iter; j++) {
+                count++;
+            }
+            counters[i] = tick_time();
+        }
+        mx = mn = counters[1] - counters[0];
+        for (i = 2; i < ntries; i++) {
+            uint32_t    diff = (uint32_t) counters[i] - (uint32_t) counters[i - 1];
+            mx = diff > mx ? diff : mx;
+            mn = diff < mn ? diff : mn;
+            if (fp_cnt) {
+                fprintf(fp_cnt, "%u\n", diff);
+            }
+            if (fp_tim) {
+                fprintf(fp_tim, "%12.9f\n", (double)diff/((double)hz/scale));
+            }
+        }
+        printf("max=%016lu, min=%016lu\n", mx, mn);
+        printf("max=%12.9f, min=%12.9f\n",
+               (double)mx/((double)hz/scale), (double)mn/((double)hz/scale));
+        if (fp_cnt) fclose(fp_cnt);
+        if (fp_tim) fclose(fp_tim);
     }
     return 0;
 }

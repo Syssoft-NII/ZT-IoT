@@ -1,0 +1,51 @@
+NanoPC
+ SoC: Rockchip RK3399
+      CPU: big.LITTLE，Dual-Core Cortex-A72(up to 2.0GHz) + Quad-Core Cortex-A53(up to 1.5GHz)
+
+CPU0, CPU3 --> Coretex-A53
+CPU4,CPU5  --> Coretex-A72
+
+/boot/extlinux/extlinux.conf
+	isolcpus=4-5 nohz_full=4-5
+$ taskset -c 4 ./ftq -i 4 -n 1000000
+
+1) CPU freq
+   cat /sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq
+2) a list of available frequencies
+   cat /sys/devices/system/cpu/cpu4/cpufreq/scaling_available_frequencies
+3) select a frequency
+   echo 900000 > /sys/devices/system/cpu/cpu4/cpufreq/scaling_setspeed
+4) select a governor
+echo userspace > /sys/devices/system/cpu/cpu4/cpufreq/scaling_governor
+------
+5)
+5.0) cat /sys/devices/system/cpu/offline
+     0-3,5
+5.1) cat /sys/devices/system/cpu/online
+     4
+5.1)  Coretex-A53 /sys/devices/system/cpu/cpufreq/policy0
+    cat scaling_available_governors 
+        conservative ondemand userspace powersave performance schedutil
+    cat scaling_cur_freq
+	1008000
+    cat scaling_available_frequencies
+    	408000 600000 816000 1008000 1200000 1416000 
+    cat /sys/devices/system/cpu/cpu4/cpufreq/scaling_governor    
+	ondemand
+5.2) Coretex-A72 /sys/devices/system/cpu/cpufreq/policy4
+    
+    cat scaling_cur_freq
+        408000
+    cat scaling_available_frequencies 
+        408000 600000 816000 1008000 1200000 1416000 1608000 1800000 
+    cat /sys/devices/system/cpu/cpu4/cpufreq/scaling_governor    
+	ondemand
+
+-------------------
+ARM Counter
+
+
+
+CNTVOFF_EL2
+	MRS <Xt>, CNTVOFF_EL2
+	https://developer.arm.com/documentation/ddi0595/2021-06/AArch64-Registers/CNTVOFF-EL2--Counter-timer-Virtual-Offset-register
