@@ -25,5 +25,7 @@ extern void	arg_parse(const char *cp, char **logfile,
 			  int *port);
 extern int	appl(void *f);
 extern int	search_syscall(char *snam);
+extern void	measure_show(int syscl, int iter, int npkt,
+			     int nflag, int hflag, int vflag);
 
 

@@ -34,7 +34,9 @@ pthread_mutex_t	mx1, mx2, mx3;
 
 static int	mrkr;
 static volatile int	finish;
-static int	dflag;
+static int	cflag;	/* application clone */
+static int	dflag;	/* debug */
+static int	nflag;	/* no audit */
 static pid_t	mypid;
 static long	count;
 
@@ -89,8 +91,14 @@ main(int argc, char **argv)
 	    int	j = 1;
 	    while(argv[i][j]) {
 		switch (argv[i][j]) {
+		case 'c':
+		    cflag = 1;
+		    break;
 		case 'd':
 		    dflag = 1;
+		    break;
+		case 'n':
+		    nflag = 1;
 		    break;
 		case 'F':
 		    outdev = OUT_FILE;
@@ -122,6 +130,19 @@ main(int argc, char **argv)
 	fprintf(stderr, "Going to standard output file\n");
 	break;
     }
+    if (cflag) {
+	
+	clone_init();
+    }
+    if (nflag) { /* only application will run */
+	/* starting foo function */
+	pthread_mutex_unlock(&mx1);
+	/* waiting for finishing application */
+	pthread_mutex_lock(&mx2);
+	measure_show(nflag);
+	goto ext;
+    }
+    /**/
     mrkr = search_syscall(MEASURE_FINISH_SYSNAME);
     if (mrkr < 0) {
 	printf("The %s system call is not avalabe on your system.\n",
@@ -145,6 +166,7 @@ main(int argc, char **argv)
 	++count;
 	if (finish) break;
     }
+ext:
     printf("EXITING\n"); fflush(stdout);
     if (outdev == OUT_FILE && fout != NULL) {
 	fclose(fout);
