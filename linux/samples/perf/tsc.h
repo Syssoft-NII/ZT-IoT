@@ -4,6 +4,8 @@
  * tsc.h - get elapsetime using hardware time stamp counter
  *         for sparc, arm64, and x86
  * HISTORY:
+ *      -  core settings are displayed in the sample code
+ *              by yutaka_ishikawa@nii.ac.jp
  *      -  x86 code was added by Yutaka Ishikawa, yutaka.ishikawa@riken.jp
  *      -  written by Masayuki Hatanaka, mhatanaka@riken.jp
  *       
@@ -104,7 +106,7 @@ static inline uint64_t tick_helz_auto(void)
     return helz;
 }
 
-#if 0
+#if 0 /* This is for EL2 */
 static inline uint64_t tick_status(void)
 {
     uint32_t cnd = 0;
@@ -147,106 +149,61 @@ static inline uint64_t tick_helz(double *p_helz)
 
 /* SAMPLE CODE */
 /*
- *      e.g.,
- *         $ ./sample -v -i 17 -f mytest_17
- *        mytest_17_cnt.csv and mytest_17_tim.csv will be generated.
- *         $ octave
- *           > load mytest_17_tim.csv
- *           > plot (mytest_17_tim, "+")
- *        or
- *         $  gnuplot
- *           > set xlabel "trials"
- *           > set ylabel "msec"
- *           > unset key
- *           > set terminal png ####  jpeg
- *           > set output "mytest_17_tim.png" ### "mytest_17_tim.jpeg"
- *           > plot "mytest_17_tim.csv"
+ *  $ ./sample
  */
 #include <time.h>	/* for nanosleep() */
 #include <stdio.h>	/* for printf() */
 #include <stdlib.h>
-#include <sys/types.h>
 #include <unistd.h>
-#include <string.h>
 #define _GNU_SOURCE
 #define __USE_GNU
 #include <sched.h>
 #include <linux/limits.h>
+#include <string.h>
 
-#define DEFAULT_ITER    (1<<4)
-#define DEFAULT_NTRIES  1000
-#define MAX_NTRIES      100000
-static uint64_t counters[MAX_NTRIES];
-static int verbose = 0;
-static char     fbuf[PATH_MAX];
-
-int main(int argc, char *argv[])
+int main()
 {
     struct timespec ts = { .tv_sec = 0, .tv_nsec = 10000, };
-    int		opt, i;
+    int		i;
     uint64_t	st, et, hz;
     cpu_set_t   mask;
     unsigned    cpu, node;
-    uint32_t    iter = DEFAULT_ITER;
-    uint32_t    ntries = DEFAULT_NTRIES;
-    FILE        *fp_cnt = NULL;
-    FILE        *fp_tim = NULL;
 
-    while ((opt = getopt(argc, argv, "f:i:n:vf")) != -1) {
-        switch (opt) {
-        case 'f':
-            snprintf(fbuf, PATH_MAX, "%s_cnt.csv", optarg);
-            fp_cnt = fopen(fbuf, "w+");
-            if (fp_cnt == NULL) {
-                fprintf(stderr, "Cannot open file: %s\n", fbuf);
-            }
-            snprintf(fbuf, PATH_MAX, "%s_tim.csv", optarg);
-            fp_tim = fopen(fbuf, "w+");
-            if (fp_tim == NULL) {
-                fprintf(stderr, "Cannot open file: %s\n", fbuf);
-            }
-            break;
-        case 'i':
-            i = atoi(optarg);
-            if (i > 32) {
-                i = 31;
-            }
-            iter = (1 << i);
-            break;
-        case 'n':
-            ntries = atoi(optarg);
-            if (ntries > MAX_NTRIES) {
-                ntries = MAX_NTRIES;
-            }
-            break;
-        case 'v':
-            verbose = 1;
-            break;
-        default:
-            printf("Unknown option = -%c\n", opt);
+    CPU_ZERO(&mask);
+    sched_getaffinity(getpid(), sizeof(cpu_set_t), &mask);
+    printf("Core Affinity:\n");
+    for (i = 0; i < CPU_SETSIZE; i++) {
+        if (CPU_ISSET(i, &mask)) {
+            printf("\tCORE#%d ", i);
         }
     }
-    if (verbose) {
-        printf("work load iteration: %u, #trials: %u\n", iter, ntries);
-        CPU_ZERO(&mask);
-        sched_getaffinity(getpid(), sizeof(cpu_set_t), &mask);
-        printf("Core Affinity:\n");
-        for (i = 0; i < CPU_SETSIZE; i++) {
-            if (CPU_ISSET(i, &mask)) {
-                printf("\tCORE#%d ", i);
-            }
-        }
-        printf("\n");
-#if 0
-        printf("Condition: %ld\n", tick_status());
-        printf("Condition2: %ld\n", tick_status2());
-#endif
-    }
+    printf("\n");
     getcpu(&cpu, &node);
-    printf("Running Core: Core#%d on Node#%d\n", cpu, node);
-
     hz = tick_helz( 0 );
-    printf("hz(%ld)\n", hz);
+#if	defined(__GNUC__) && defined(__aarch64__)
+    {
+        char buf[PATH_MAX];
+        FILE            *fp;
+        uint64_t        ohz;
+        snprintf(buf, PATH_MAX,
+                 "/sys/devices/system/cpu/cpu%d/cpufreq/scaling_cur_freq",
+                 cpu);
+        fp = fopen(buf, "r");
+        if (fp) {
+            ohz = 0;
+            fread(buf, PATH_MAX, 1, fp);
+            sscanf(buf, "%ld\n", &ohz);
+            fclose(fp);
+        } else {
+            ohz = 0;
+        }
+        printf("Running Core#%d on Node#%d, "
+               "operation: %ld Hz, counter: %ld Hz\n",  cpu, node, hz, ohz);
+    }
+#else
+    printf("Running Core#%d on Node#%d, %ld Hz\n", cpu, node, hz);
+#endif
+
     if (hz == 0) {
 	printf("Cannot obtain CPU frequency\n");
 	exit(-1);
@@ -261,39 +218,6 @@ int main(int argc, char *argv[])
         printf("\t\t start: %12.9f end: %12.9f\n",
                (double)(st)/(double)(hz), (double)(et)/(double)(hz));
 
-    }
-    printf("st=%016ld\n", st);
-    printf("et=%016ld\n", et);
-    {
-        uint32_t        i, j;
-        uint64_t        count = 0;
-        uint64_t        mx, mn;
-        double          scale = 1000;
-
-        memset(counters, 0, sizeof(counters));
-        for (i = 0; i < ntries; i++) {
-            for (j = 0; j < iter; j++) {
-                count++;
-            }
-            counters[i] = tick_time();
-        }
-        mx = mn = counters[1] - counters[0];
-        for (i = 2; i < ntries; i++) {
-            uint32_t    diff = (uint32_t) counters[i] - (uint32_t) counters[i - 1];
-            mx = diff > mx ? diff : mx;
-            mn = diff < mn ? diff : mn;
-            if (fp_cnt) {
-                fprintf(fp_cnt, "%u\n", diff);
-            }
-            if (fp_tim) {
-                fprintf(fp_tim, "%12.9f\n", (double)diff/((double)hz/scale));
-            }
-        }
-        printf("max=%016lu, min=%016lu\n", mx, mn);
-        printf("max=%12.9f, min=%12.9f\n",
-               (double)mx/((double)hz/scale), (double)mn/((double)hz/scale));
-        if (fp_cnt) fclose(fp_cnt);
-        if (fp_tim) fclose(fp_tim);
     }
     return 0;
 }
