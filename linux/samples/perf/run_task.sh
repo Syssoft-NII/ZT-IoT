@@ -3,7 +3,7 @@
 CPUS="0 1 2 3 4 5"
 
 if test $# -lt 2 ; then
-   echo "\trun_task.sh <#tials> <application>"
+   echo "   run_task.sh <#tials> <application>"
    exit 1
 fi
 ITER=$1

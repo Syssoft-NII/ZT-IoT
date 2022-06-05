@@ -4,11 +4,14 @@ PROG	= sample mj
 
 all: $(PROG)
 sample: sample.c tsc.h
-	cc -Wall -o sample sample.c
+	cc -Wall -O0 -o sample sample.c
 mj: mj.c tsc.h
-	cc -Wall -g -o mj mj.c
+	cc -Wall -O0 -o mj mj.c -lm
 clean:
 	rm -f $(PROG)
 
 run_sample:
 	sh run_task.sh 1 ./sample
+run_mj:
+	./mj
+	./mj -n 10000

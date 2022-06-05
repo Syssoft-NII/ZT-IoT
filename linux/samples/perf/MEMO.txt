@@ -5,10 +5,6 @@ NanoPC
 CPU0, CPU3 --> Coretex-A53
 CPU4,CPU5  --> Coretex-A72
 
-/boot/extlinux/extlinux.conf
-	isolcpus=4-5 nohz_full=4-5
-$ taskset -c 4 ./ftq -i 4 -n 1000000
-
 1) CPU freq
    cat /sys/devices/system/cpu/cpu4/cpufreq/scaling_cur_freq
 2) a list of available frequencies
@@ -40,6 +36,11 @@ echo userspace > /sys/devices/system/cpu/cpu4/cpufreq/scaling_governor
         408000 600000 816000 1008000 1200000 1416000 1608000 1800000 
     cat /sys/devices/system/cpu/cpu4/cpufreq/scaling_governor    
 	ondemand
+
+-------------------
+/boot/extlinux/extlinux.conf
+	isolcpus=4-5 nohz_full=4-5
+$ taskset -c 4 ./ftq -i 4 -n 1000000
 
 -------------------
 ARM Counter

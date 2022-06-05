@@ -1,0 +1,25 @@
+clock: max=0000000000118517, min=0000000000079996
+time(msec): max= 4.938208333, min= 3.333166667
+
+Core Affinity:
+	CORE#4 	CORE#5 
+Running Core#5 on Node#0, operation: 1800000 kHz, counter: 24000000 Hz
+Current Governor: userspace
+
+Available Freequencies: 408000 600000 816000 1008000 1200000 1416000 1608000 1800000 
+Available Governors: conservative ondemand userspace powersave performance schedutil 
+1) show core freqency
+	/sys/devices/system/cpu/cpu*/cpufreq/scaling_cur_freq
+2) show a list of available frequencies
+	/sys/devices/system/cpu/cpu*/cpufreq/scaling_available_frequencies
+3) show/select a frequency
+	/sys/devices/system/cpu/cpu*/cpufreq/scaling_setspeed
+4) show a list of available governors
+	/sys/devices/system/cpu/cpu*/cpufreq/scaling_available_governors
+5) show/select a governor
+	/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor
+6) set core online/offline
+	/sys/devices/system/cpu/cpu?/oonline
+7) show core online/offline list
+	/sys/devices/system/cpu/oonline
+	/sys/devices/system/cpu/offline
