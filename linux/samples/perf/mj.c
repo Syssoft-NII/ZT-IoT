@@ -164,7 +164,7 @@ cpu_info(FILE *fout)
     sched_getaffinity(getpid(), sizeof(cpu_set_t), &mask);
     fprintf(fout, "Core Affinity:\n");
     for (i = 0; i < CPU_SETSIZE; i++) {
-	if (CPU_ISSET(i, &mymask)) {
+	if (CPU_ISSET(i, &mask)) {
 	    fprintf(fout, "\tCORE#%d ", i);
 	}
     }

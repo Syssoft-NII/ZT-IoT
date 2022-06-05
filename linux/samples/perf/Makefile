@@ -1,6 +1,6 @@
 #
 #
-PROG	= sample mj stat
+PROG	= sample mj stat corebind
 
 all: $(PROG)
 sample: sample.c tsc.h
@@ -9,6 +9,8 @@ mj: mj.c tsc.h
 	cc -Wall -O0 -o mj mj.c -lm
 stat: stat.c
 	cc -Wall -O2 -o stat stat.c
+corebind: corebind.c
+	cc -Wall -O2 -o corebind corebind.c
 clean:
 	rm -f $(PROG)
 
