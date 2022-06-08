@@ -1,0 +1,8 @@
+main: syscl = 1
+<27999> Now Ready for basic measurement.(marker=178)....
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid, 274.116582492, 27137.541666667, 1505, 498631, 546, 5.010720e+04, 100, 4, 0
+audit plugin time (usec): start clock(1960412861868) end clock(1960413892149)
+                       :42928.375000000 in 243 packets
+Measured data: Wed Jun  8 19:18:56 2022
+

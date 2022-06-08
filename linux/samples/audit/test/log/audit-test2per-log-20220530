@@ -1,0 +1,79 @@
+sh run_task.sh 5 ./audit-test2per -i 1000 -e 1 -n
+ITER= 5
+######
+taskset -c 0 ./audit-test2per -i 1000 -e 1 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.685810811, 685.125000000, 427, 868, 14, 3.137250e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.728728729, 728.000000000, 609, 336, 14, 2.473450e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.655447114, 654.791666667, 406, 28, 14, 1.537797e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.649607941, 648.958333333, 434, 21, 14, 1.522620e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.647564231, 646.916666667, 427, 28, 14, 1.518029e+01
+
+######
+taskset -c 1 ./audit-test2per -i 1000 -e 1 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.654571238, 653.916666667, 420, 21, 14, 1.535259e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.655447114, 654.791666667, 441, 21, 14, 1.537478e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.694569570, 693.875000000, 385, 1176, 14, 4.013241e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.651651652, 651.000000000, 378, 28, 14, 1.528480e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.648148148, 647.500000000, 413, 28, 14, 1.519204e+01
+
+######
+taskset -c 2 ./audit-test2per -i 1000 -e 1 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.715882549, 715.166666667, 413, 1554, 14, 5.144354e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.651651652, 651.000000000, 427, 21, 14, 1.527838e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.675884218, 675.208333333, 406, 693, 14, 2.662737e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.649024024, 648.375000000, 413, 21, 14, 1.521125e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.651067734, 650.416666667, 420, 28, 14, 1.526670e+01
+
+######
+taskset -c 3 ./audit-test2per -i 1000 -e 1 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.859234234, 858.375000000, 518, 1498, 14, 5.086856e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.743034701, 742.291666667, 518, 2149, 14, 6.965791e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.648440107, 647.791666667, 441, 21, 14, 1.519630e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.660702369, 660.041666667, 399, 28, 14, 1.551036e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.715590591, 714.875000000, 399, 1533, 14, 5.081490e+01
+
+######
+taskset -c 4 ./audit-test2per -i 1000 -e 1 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  1.790290290, 1788.500000000, 728, 728, 35, 4.656184e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.523189857, 522.666666667, 280, 21, 7, 1.242151e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.416333000, 415.916666667, 245, 21, 7, 1.020184e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.980397064, 979.416666667, 301, 2135, 21, 7.055798e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.612529196, 611.916666667, 280, 21, 14, 1.424396e+01
+
+######
+taskset -c 5 ./audit-test2per -i 1000 -e 1 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.890765766, 889.875000000, 399, 28, 21, 2.054867e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.610777444, 610.166666667, 231, 21, 14, 1.419577e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.526693360, 526.166666667, 308, 21, 7, 1.250901e+01
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  1.006673340, 1005.666666667, 371, 4109, 14, 1.362772e+02
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev
+getuid,  0.711795128, 711.083333333, 329, 21, 14, 1.673605e+01

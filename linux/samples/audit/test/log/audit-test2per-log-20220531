@@ -1,0 +1,160 @@
+sh run_task.sh 5 ./audit-test2per -i 1000 -e 1 -n
+ITER= 5
+######
+taskset -c 0 ./audit-test2per -i 1000 -e 1 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.648440107, 647.791666667, 406, 21, 14, 1.519630e+01, 0, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.646980314, 646.333333333, 427, 21, 14, 1.515883e+01, 0, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.794711378, 793.916666667, 511, 28, 14, 1.855706e+01, 0, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.863613614, 862.750000000, 504, 1575, 14, 5.315346e+01, 0, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.651359693, 650.708333333, 434, 28, 14, 1.527415e+01, 0, 0
+
+######
+taskset -c 1 ./audit-test2per -i 1000 -e 1 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.799966633, 799.166666667, 532, 28, 14, 1.865982e+01, 1, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.707707708, 707.000000000, 441, 1519, 14, 5.033666e+01, 1, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.869744745, 868.875000000, 504, 1792, 14, 5.961299e+01, 1, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.794419419, 793.625000000, 504, 28, 14, 1.855104e+01, 1, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.649607941, 648.958333333, 434, 28, 14, 1.522942e+01, 1, 0
+
+######
+taskset -c 2 ./audit-test2per -i 1000 -e 1 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.800550551, 799.750000000, 525, 28, 14, 1.868753e+01, 2, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.646396396, 645.750000000, 441, 21, 14, 1.514381e+01, 2, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.755005005, 754.250000000, 609, 2429, 7, 8.708026e+01, 2, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.786828495, 786.041666667, 483, 2429, 14, 8.261336e+01, 2, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.797922923, 797.125000000, 525, 28, 14, 1.862052e+01, 2, 0
+
+######
+taskset -c 3 ./audit-test2per -i 1000 -e 1 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.799382716, 798.583333333, 504, 28, 14, 1.866099e+01, 3, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.923465132, 922.541666667, 693, 2464, 14, 8.155934e+01, 3, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.644060727, 643.416666667, 448, 28, 14, 1.508684e+01, 3, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.651943610, 651.291666667, 364, 21, 14, 1.528582e+01, 3, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.796463130, 795.666666667, 504, 28, 14, 1.860105e+01, 3, 0
+
+######
+taskset -c 4 ./audit-test2per -i 1000 -e 1 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  1.811311311, 1809.500000000, 728, 1372, 35, 5.921014e+01, 4, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  1.250750751, 1249.500000000, 511, 1302, 28, 4.953164e+01, 4, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.610485485, 609.875000000, 315, 21, 14, 1.418772e+01, 4, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  1.424174174, 1422.750000000, 490, 5236, 28, 1.679127e+02, 4, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.662746079, 662.083333333, 280, 1267, 14, 4.248715e+01, 4, 0
+
+######
+taskset -c 5 ./audit-test2per -i 1000 -e 1 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.849891558, 849.041666667, 742, 63, 14, 2.155539e+01, 5, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.888722055, 887.833333333, 399, 28, 21, 2.049427e+01, 5, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.783033033, 782.250000000, 329, 1505, 14, 5.049544e+01, 5, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.893685352, 892.791666667, 406, 28, 21, 2.062611e+01, 5, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+getuid,  0.722013680, 721.291666667, 287, 21, 14, 1.697027e+01, 5, 0
+
+sh run_task.sh 5 ./audit-test2per -i 1000 -e 2 -n
+ITER= 5
+######
+taskset -c 0 ./audit-test2per -i 1000 -e 2 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  7.927114615, 15838.375000000, 2303, 3535, 287, 4.010811e+02, 0, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  8.379796463, 16742.833333333, 2051, 21707, 336, 8.035671e+02, 0, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  8.755255255, 17493.000000000, 2443, 19551, 280, 7.960266e+02, 0, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  8.097034535, 16177.875000000, 2576, 2002, 287, 4.242810e+02, 0, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  7.800258592, 15584.916666667, 1904, 1841, 287, 3.798081e+02, 0, 0
+
+######
+taskset -c 1 ./audit-test2per -i 1000 -e 2 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  8.320528862, 16624.416666667, 2072, 3997, 280, 4.406858e+02, 1, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  7.343051385, 14671.416666667, 2072, 4578, 280, 3.818013e+02, 1, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  8.173089756, 16329.833333333, 2737, 4984, 280, 4.577969e+02, 1, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  8.038642809, 16061.208333333, 2674, 20741, 287, 7.530881e+02, 1, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  9.420191024, 18821.541666667, 2429, 8750, 287, 5.267599e+02, 1, 0
+
+######
+taskset -c 2 ./audit-test2per -i 1000 -e 2 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  8.583583584, 17150.000000000, 2233, 1463, 280, 4.204012e+02, 2, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  8.533512679, 17049.958333333, 1652, 26943, 287, 9.346486e+02, 2, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  8.482857858, 16948.750000000, 2128, 14259, 287, 6.155002e+02, 2, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  9.122393227, 18226.541666667, 2604, 16877, 287, 7.104464e+02, 2, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  9.274941608, 18531.333333333, 2583, 23646, 287, 1.035369e+03, 2, 0
+
+######
+taskset -c 3 ./audit-test2per -i 1000 -e 2 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  7.797630964, 15579.666666667, 2037, 3500, 280, 3.949694e+02, 3, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  8.395270270, 16773.750000000, 1813, 28364, 329, 9.846790e+02, 3, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  8.059371872, 16102.625000000, 2534, 17773, 280, 6.873595e+02, 3, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  9.522230564, 19025.416666667, 2303, 39095, 280, 1.307986e+03, 3, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  8.781969469, 17546.375000000, 1729, 27307, 329, 9.517803e+02, 3, 0
+
+######
+taskset -c 4 ./audit-test2per -i 1000 -e 2 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  6.822927094, 13632.208333333, 1617, 10647, 154, 4.731590e+02, 4, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  6.010552219, 12009.083333333, 1505, 1183, 168, 2.975825e+02, 4, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  5.568964798, 11126.791666667, 1260, 26453, 196, 8.706638e+02, 4, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  5.163580247, 10316.833333333, 1127, 20713, 196, 6.930348e+02, 4, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  5.562249750, 11113.375000000, 1274, 5586, 196, 3.264320e+02, 4, 0
+
+######
+taskset -c 5 ./audit-test2per -i 1000 -e 2 -n
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  6.523669503, 13034.291666666, 1806, 9541, 168, 4.636749e+02, 5, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  5.444298465, 10877.708333333, 1134, 16716, 231, 5.813243e+02, 5, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  5.691587421, 11371.791666667, 2408, 12719, 154, 5.523464e+02, 5, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  6.512741909, 13012.458333333, 2527, 34272, 154, 1.208211e+03, 5, 0
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, core#, node#
+open&close,  5.952160494, 11892.416666667, 987, 8498, 196, 4.091062e+02, 5, 0
+
