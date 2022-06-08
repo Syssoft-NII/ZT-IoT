@@ -122,3 +122,82 @@ https://attack.mitre.org/techniques/T1078/
 
 https://listman.redhat.com/archives/linux-audit/
 
+--------------------------------------------------------
+About auditd program
+in auditd.c
+      ev_io_init (&netlink_watcher, netlink_handler, fd, EV_READ);
+      ev_io_start (loop, &netlink_watcher);
+
+static void
+netlink_handler(struct ev_loop *loop, struct ev_io *io, int revents)
+   call distribute_event()
+
+void distribute_event(struct auditd_event *e)
+	/* Next, send to plugins */
+	if (route)
+		dispatch_event(&e->reply, proto);
+
+in auditd-dispatch.c
+int dispatch_event(const struct audit_reply *rep, int protocol_ver)
+  return  libdisp_enqueue(e);
+
+in audisp/audispd.c
+int libdisp_enqueue(event_t *e)
+            calling enqueue(e, &daemon_config);
+
+---------------------------------------------------
+Here is a plugin module audisp
+In audisp/audispd.c,
+
+int start_one_plugin(lnode *conf)
+    safe_exec(...)
+
+int safe_exec(plugin_conf_t *conf)
+       socketpair()
+       fork & exec
+----------------------
+in audisp/audispd.c
+void *outbound_thread_main(void *arg) is defined
+   in which the audit messages are sent to all the plugin processes.
+
+int event_loop(void) is also defined.
+   in which an event is extracted via an queue operation defined in queue.c
+
+static int event_loop(void)
+   call  send_af_unix_string(const char *s, unsigned int len)
+
+NOT
+audisp/audispd-builtins.c
+void send_af_unix_string(const char *s, unsigned int len)
+ 
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+auparse.c
+static void consume_feed(auparse_state_t *au, int flush)
+       	while (auparse_next_event(au) > 0) {
+		if (au->callback) {
+			(*au->callback)(au, AUPARSE_CB_EVENT_READY,
+					au->callback_user_data);
+		}
+	}
+
+int auparse_next_event(auparse_state_t *au)
+{
+	clear_normalizer(&au->norm_data);
+	return au_auparse_next_event(au);
+}
+
+static int au_auparse_next_event(auparse_state_t *au)
+{
+	if ((l = au_get_ready_event(au, 0)) != NULL) {
+	   Here we see ready list, but not extracted
+	}
+}
+
+int auparse_feed_has_ready_event(auparse_state_t *au)
+{
+	if (au_get_ready_event(au, 1) != NULL)
+		return 1;
+
+	return 0;
+}

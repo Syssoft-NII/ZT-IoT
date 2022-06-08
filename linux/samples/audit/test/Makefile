@@ -9,6 +9,9 @@ LIB=/usr/local/lib
 IMAGE=plugin-3
 AUDISP=plugin-test
 DST=./docker/audit/bin
+
+INCLUDES=-I../audit-userspace/ -I../audit-userspace/auparse/ -I../audit-userspace/lib/ -I../audit-userspace/src/
+
 #all: audit-test audit-test2 regexptest cmdtest plugin plugin-2 plugin-3 selinux mqtt_sub mqtt_pub user-test
 all: audit-test audit-test2 audit-test2per regexptest cmdtest \
 	plugin-test \
@@ -27,8 +30,9 @@ cmdtest: cmdtest.o mylib.o
 plugin: plugin.c
 	$(CC) -g -I/usr/local/include -o $@ $< -L/usr/local/lib/ -lauparse -laudit
 plugin-test: plugin-test.c autestlib.o
-	$(CC) -Wall -g -O2 -I/usr/local/include -o $@ $< autestlib.o \
-	-L/usr/local/lib/ -lauparse -laudit
+	$(CC) $(INCLUDES) -Wall -g -O2 -I/usr/local/include -o $@ $< autestlib.o \
+	-L/usr/local/lib/ -lauparse -laudit -lm
+autestlib.o: autestlib.c autestlib.h
 plugin-2: plugin-2.c sysname.h
 	$(CC) -g -I/usr/local/include -o $@ $< -L/usr/local/lib/ -lauparse -laudit
 plugin-3: plugin-3.c sysname.h log-field.h mylib.o comlib.o
@@ -67,3 +71,5 @@ run-audit-test2per:
 	sh run_task.sh 5 ./audit-test2per -i 1000 -e 2 -n
 	sh run_task.sh 5 ./audit-test2per -i 1000 -e 1
 	sh run_task.sh 5 ./audit-test2per -i 1000 -e 2
+run-plugin-test:
+	taskset -c 4 auditd -f -n -s enable -c /usr/local/etc/audit >&/dev/null

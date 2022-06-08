@@ -5,8 +5,8 @@ PROG	= sample mj stat corebind
 all: $(PROG)
 sample: sample.c tsc.h
 	cc -Wall -O0 -o sample sample.c
-mj: mj.c tsc.h
-	cc -Wall -O0 -o mj mj.c -lm
+mj: mj.c tsc.h measurelib.h measurelib.o
+	cc -Wall -O0 -o mj mj.c measurelib.o -lm
 stat: stat.c
 	cc -Wall -O2 -o stat stat.c
 corebind: corebind.c
