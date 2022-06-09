@@ -17,6 +17,7 @@
 #include "sysname.h"
 #include "tsc.h"
 #include "autestlib.h"
+#include "measurelib.h"
 
 /* gettid() is the Linux specific system call */
 extern int	gettid();
@@ -83,7 +84,8 @@ static int	app_core;
 int
 core_bind(int cpu)
 {
-    int		rc, ncpu, nnode;
+    int		rc;
+    unsigned int	ncpu, nnode;
     int		pid;
     cpu_set_t   nmask;
 
@@ -121,7 +123,7 @@ appl(void *f)
 
     app_core = core_bind(cpu);
     VERBOSE {
-	printf("Cloned-thread is running on Core#d. stack = %p pid=%d iter = %d syscl = %d vflag = %d\n", app_core, &i, getpid(), iter, syscl, vflag); fflush(stdout);
+	printf("Cloned-thread is running on core#%d (requring core#%d. stack = %p pid=%d iter = %d syscl = %d vflag = %d\n", app_core, cpu, &i, getpid(), iter, syscl, vflag); fflush(stdout);
     }
     /* waiting for unlock by main */
     pthread_mutex_lock(&mx1);
@@ -314,7 +316,8 @@ arg_parse(const char *cp, char **prefix,
 static  int  app_argv[4];
 
 int
-clone_init(int iter, int syscl, int vflag, int app_cpu)
+clone_init(int iter, int syscl, int vflag, int app_cpu,
+	   int *fd_audit, int is_enb)
 {
     int		i, mrkr, rc = 0;
     int		fd;
@@ -322,24 +325,26 @@ clone_init(int iter, int syscl, int vflag, int app_cpu)
     int		flags = CLONE_VM
 		// CLONE_NEWPID | CLONE_FS | CLONE_IO| CLONE_NEWUTS
 		;
-
     mrkr = search_syscall(MEASURE_FINISH_SYSNAME);
     if (mrkr < 0) {
 	printf("The %s system call is not avalabe on your system.\n",
 	       MEASURE_FINISH_SYSNAME);
 	exit(-1);
     }
-    /* audit open */
-    fd = audit_open();
-    if (fd < 0) {
-	perror("audit_open: ");
-	exit(-1);
-    }
-    rule = audit_rule_create_data();
-    if (rule == NULL) {
-	fprintf(stderr, "Cannot allocate an audit rule structure\n");
-	close(fd);
-	exit(-1);
+    if (fd_audit) {
+	/* audit open */
+	fd = audit_open();
+	if (fd < 0) {
+	    perror("audit_open: ");
+	    exit(-1);
+	}
+	*fd_audit = fd;
+	rule = audit_rule_create_data();
+	if (rule == NULL) {
+	    fprintf(stderr, "Cannot allocate an audit rule structure\n");
+	    close(fd);
+	    exit(-1);
+	}
     }
 
     stack = malloc(STACK_SIZE);
@@ -350,28 +355,46 @@ clone_init(int iter, int syscl, int vflag, int app_cpu)
     memset(stack, 0, STACK_SIZE);
     workarea_init();
 
-    /* add marker and other syscalls for capturing */
-    AUDIT_RULE_BY_NAME(rc, rule, MEASURE_FINISH_SYSNAME, err);
+    if (fd_audit) {
+	/* add marker and other syscalls for capturing */
+	AUDIT_RULE_BY_NAME(rc, rule, MEASURE_FINISH_SYSNAME, err);
 #if 0
-    AUDIT_RULE_BY_NAME(rc, rule, MEASURE_FINISH_SYSNAME_2, err);
+	AUDIT_RULE_BY_NAME(rc, rule, MEASURE_FINISH_SYSNAME_2, err);
 #endif
-    for (i = 0; i < systab[syscl].ncall; i++) {
-	VERBOSE {
-	    printf("systab[i]: %s\n",  systab[syscl].sysname[i]);
+	for (i = 0; i < systab[syscl].ncall; i++) {
+	    VERBOSE {
+		printf("systab[i]: %s\n",  systab[syscl].sysname[i]);
+	    }
+	    AUDIT_RULE_BY_NAME(rc, rule, systab[syscl].sysname[i], err);
 	}
-	AUDIT_RULE_BY_NAME(rc, rule, systab[syscl].sysname[i], err);
-    }
-    rc = audit_add_rule_data(fd, rule, AUDIT_FILTER_EXIT, AUDIT_ALWAYS);
-    if (rc <= 0) {
-	fprintf(stderr, "audit_add_rule_data() fails: %s, %d\n",
-		audit_errno_to_name(-rc), rc);
-	if (rc == -17) {
-	    fprintf(stderr, "The rule already exists. Please see the rules and delete them using the auditctl command.\n");
+	rc = audit_add_rule_data(fd, rule, AUDIT_FILTER_EXIT, AUDIT_ALWAYS);
+	if (rc <= 0) {
+	    fprintf(stderr, "audit_add_rule_data() fails: %s, %d\n",
+		    audit_errno_to_name(-rc), rc);
+	    if (rc == -17) {
+		fprintf(stderr, "The rule already exists. Please see the rules and delete them using the auditctl command.\n");
+	    }
+	    close(fd);
+	    goto err;
 	}
-	close(fd);
-	goto err;
+	if (is_enb) {
+	    /* Enabling the audit system to capture system calls */
+	    rc = audit_set_enabled(fd, 1);
+	    if (rc <= 0) {
+		fprintf(stderr, "audit_set_enabled() fails: %d\n", rc);
+		close(fd);
+		goto err;
+	    }
+	    /* This process becomes audit daemon process */
+	    rc = audit_set_pid(fd, getpid(), WAIT_YES);
+	    if (rc <= 0) {
+		fprintf(stderr, "audit_set_enabled() fails: %d\n", rc);
+		close(fd);
+		exit(-1);
+	    }
+	}
     }
-    close(fd);
+
     /* create thread */
     VERBOSE {
 	printf("Clone application\n");
@@ -399,7 +422,7 @@ err:
 #define SCALE	1000000
 void
 measure_show(int syscl, int iter, int npkt, uint64_t st, uint64_t et,
-	     int hflag, int vflag)
+	     int hflag, int vflag, int isaud)
 {
     int	i, l;
     uint64_t	tclk;
@@ -432,16 +455,19 @@ measure_show(int syscl, int iter, int npkt, uint64_t st, uint64_t et,
 	stdev = sqrt(dev);
 	getcpu(&cpu, &node);
 	printf("#syscall, avg without 1st, total without 1st, 1st, "
-	       "max, min, stdev, core#, node#\n");
+	       "max, min, stdev, iter, core#, node#\n");
 	printf("%s, %12.9f, %12.9f, %ld, %ld, %ld, %e, %d, %d, %d\n",
 	       tm_msg[syscl][l], avg, ttim, ptm_et[l][0] - ptm_st[l][0],
 	       ptm_max, ptm_min, stdev, iter, cpu, node);
     }
-    printf("audit plugin time (usec): start clock(%ld) end clock(%ld)\n"
-	   "                       :%12.9f in %d packets\n",
-	   st, et,
-	   (double)(et - st)/(((double)hz)/(double)SCALE),
-	   npkt);
+    if (isaud) {
+	printf("audit processing time (usec): "
+	       "start clock(%ld) end clock(%ld)\n"
+	       "                            : %12.9f in %d packets\n",
+	       st, et, (double)(et - st)/(((double)hz)/(double)SCALE), npkt);
+    }
+    printf("\n-----------------------------\n");
+    cpu_info(stdout);
 }
 
 void
@@ -466,11 +492,15 @@ out_open(char *fbuf, const char *prefix, int iter, int ntries,
 	 const char *type, const char *ext, char *fname)
 {
     FILE	*fp;
-    struct tm	tm;
-    time_t	tt;
+    static int	notfirst = 0;
+    static struct tm	tm;
+    static time_t	tt;
 
-    time(&tt);
-    localtime_r(&tt, &tm);
+    if (notfirst == 0) {
+	time(&tt);
+	localtime_r(&tt, &tm);
+	notfirst = 1;
+    }
     snprintf(fbuf, PATH_MAX,"%s_%04d:%02d:%02d:%02d:%02d_i%d_n%d_%s.%s",
 	     prefix,
 	     tm.tm_year + 1900, tm.tm_mon + 1, tm.tm_mday,

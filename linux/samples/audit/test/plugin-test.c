@@ -97,7 +97,7 @@ finalization()
 	printf("%s: going to exiting\n", __func__); fflush(stdout);
     }
     if (mrkr > 0) {
-	measure_show(syscl, iter, npkt, aud_st, aud_et, hflag, vflag);
+	measure_show(syscl, iter, npkt, aud_st, aud_et, hflag, vflag, 1);
 	if (fdat) {
 	    measure_dout(fdat, syscl, iter);
 	}
@@ -111,7 +111,7 @@ finalization()
     {
 	time_t	tt;
 	time(&tt);
-	printf("Measured data: %s\n", ctime(&tt));
+	printf("Measured date: %s\n", ctime(&tt));
     }
     if (outdev == OUT_FILE && fout != NULL) {
 	fclose(fout);
@@ -178,7 +178,8 @@ int
 main(int argc, char **argv)
 {
     int		i, port = 0;
-    char	*prefix = NULL, *url = NULL,
+    char	*prefix = "plugin-test";
+    char	*url = NULL,
 		*protocol = NULL, *host = NULL;
     auparse_state_t	*au;
 
@@ -242,15 +243,10 @@ main(int argc, char **argv)
     case OUT_FILE:
     {
 	char	fbuf[PATH_MAX];
-	fout = out_open(fbuf, prefix, iter, 0, "info", "txt", fbuf);
-	if (fout == NULL) {
-	    fprintf(stderr, "Cannot open file %s.txt\n", fbuf);
-	} else {
-	    stdout = fout; stderr = fout;
-	}
+	fout = out_open(fbuf, prefix, iter, 0, "info", "txt", NULL);
+	stdout = fout; stderr = fout;
 	if (rflag) {
 	    fdat = out_open(fbuf, prefix, iter, 0, "tim", "csv", NULL);
-	    fdat = fopen(fbuf, "w");
 	}
 	break;
     }
@@ -268,18 +264,19 @@ main(int argc, char **argv)
     auparse_add_callback(au, handle_event, NULL, NULL);
     /**/
     if (cflag) {
+	int	fd;
 	syscl = 1;
 	printf("%s: syscl = %d\n", __func__, syscl); fflush(stdout);
 	if (cpu == -1) { /* core is not changed */
-	    mrkr = clone_init(iter, syscl, vflag, -1);
+	    mrkr = clone_init(iter, syscl, vflag, -1, &fd, 0);
 	} else { /* next to the core */
-	    mrkr = clone_init(iter, syscl, vflag, mycore + 1);
+	    mrkr = clone_init(iter, syscl, vflag, mycore + 1, &fd, 0);
 	}
 	if (mrkr < 0) {
 	    goto err;
 	}
-	printf("<%d> Now Ready for basic measurement.(marker=%d)....\n", mypid, mrkr); fflush(stdout);
-	/* starting foo function */
+	printf("<%d> Now Ready for basic measurement.(marker=%d, fd=%d)....\n", mypid, mrkr, fd); fflush(stdout);
+	/* starting the appl() function */
 	pthread_mutex_unlock(&mx1);
     } else {
 	printf("<%d> Now listing.....\n", mypid); fflush(stdout);
