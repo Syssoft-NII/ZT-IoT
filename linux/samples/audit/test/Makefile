@@ -83,11 +83,14 @@ run-audit-test3:
 	# without audit processing on core 4
 	sudo auditctl -D
 	sudo taskset -c 4 ./audit-test3 -i 10000 -e 1 -n
+	sudo mv /tmp/audit-test3_*.* results/auditlib-no/
 	# with audit processing running on core 4, the same core
 	sudo auditctl -D
 	sudo taskset -c 4 ./audit-test3 -i 10000 -e 1
+	sudo mv /tmp/audit-test3_*.* results/auditlib-same/
 	# with audit processing runnning on separated core
 	sudo auditctl -D
 	sudo taskset -c 4,5 ./audit-test3 -i 10000 -e 1 -c 4
+	sudo mv /tmp/audit-test3_*.* results/auditlib-sep/
 run-plugin-test:
 	taskset -c 4 auditd -f -n -s enable -c /usr/local/etc/audit >&/dev/null
