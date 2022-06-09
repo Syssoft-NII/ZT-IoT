@@ -1,0 +1,15 @@
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, iter, core#, node#
+getuid, 142.220476214, 1422062.541666666, 791, 117985, 315, 1.263072e+04, 10000, 4, 0
+audit processing time (usec): start clock(3309896591159) end clock(3309931026665)
+                            : 1434812.750000000 in 30005 packets
+
+-----------------------------
+Core Affinity:
+	CORE#4 
+Running Core#4 on Node#0, operation: 1800000 kHz, counter: 24000000 Hz
+Current Governor: userspace
+
+Available Freequencies: 408000 600000 816000 1008000 1200000 1416000 1608000 1800000 
+Available Governors: conservative ondemand userspace powersave performance schedutil 
+Measured date: Thu Jun  9 10:56:05 2022
+
