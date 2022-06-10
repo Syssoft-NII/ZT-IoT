@@ -55,21 +55,25 @@ HOW TO MEASURE ADUIT COSTS
      You may change the prefix of generated files. See the program.
 2) Measure basic system calls using audid plugin process.
  3.1) copy auditd.conf to /usr/local/etc/audit/
-   # cp auditd.conf /usr/local/etc/audit/
+   $ sudo cp auditd.conf /usr/local/etc/audit/
  3.2) copy test.conf to /usr/local/etc/audit/plugins.d/
-   # cp auditd.conf /usr/local/etc/audit/plugins.d/
-3) You should use three shell windows:
-  3.1) Window 1 -- auditd invocation without daemonizaed
+   $ sudo cp auditd.conf /usr/local/etc/audit/plugins.d/
+3) Mesuring audit costs using audit-test3 program:
+   $ sudo make run-audit-test3
+4) Measuring auditd and plugin processes costs:
+  You should use three shell windows:
+  4.1) Window 1 -- auditd invocation without daemonizaed
    # auditd -f -n -s enable -c /usr/local/etc/audit >& /dev/null
-  3.2) Window 2 -- killing auditd process and reset audit rules
+  4.2) Window 2 -- killing auditd process and reset audit rules
    Kill auditd. If the plugin process is also running, kill it.
    # ps axwwl | grep auditd
    Delete all audit rules
    # auditctl -D
    Make sure that all audit rules are deleted
    # auditctl -l
-  3.3) Window 3 -- looking output files.
+  4.3) Window 3 -- looking output files.
    Results will be located on /tmp/
+  4.4) run it with several options defined in /usr/local/etc/audit/plugins.d/
    
 ######################################
 ./plot.sh results/auditlib-no/audit-test3_2022:06:09:10:56_i10000_n0_tim
