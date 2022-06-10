@@ -1,4 +1,18 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+Tools installation
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# sudo  apt-get install curl lsb-release -y
+$ sudo apt-get install emacs screen -y
+$ sudo apt-get install net-tools -y
+$ sudo apt-get install dns-utils -y
+$ sudo apt-get install git -y
+$ sudo apt-get install make gcc g++ gdb -y
+sudo apt-get install -y autoconf automake libtool autoconf-doc libtool-doc swig
+sudo apt-get install -y libcjson-dev xsltproc libssl-dev
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 Testing Audit
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 The libaudit-dev package for Ubuntu 20.04 is an old version.
 We should use the latest libaudit instead of "sudo apt-get install libaudit-dev"
 
