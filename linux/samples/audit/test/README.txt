@@ -43,7 +43,8 @@ HOW TO BUILD
   Otherwise set up the following shell variables:
   # export LD_LIBRARY_PATH=:/usr/local/lib
   # export PATH=:/usr/local/bin:$PATH
-
+3) make in this directory (i.e. linux/samples/audit/test/)
+  $ make
 
 ######################################
 HOW TO MEASURE ADUIT COSTS
@@ -57,7 +58,18 @@ HOW TO MEASURE ADUIT COSTS
    # cp auditd.conf /usr/local/etc/audit/
  3.2) copy test.conf to /usr/local/etc/audit/plugins.d/
    # cp auditd.conf /usr/local/etc/audit/plugins.d/
-3) 
+3) You should use three shell windows:
+  3.1) Window 1 -- auditd invocation without daemonizaed
+   # auditd -f -n -s enable -c /usr/local/etc/audit >& /dev/null
+  3.2) Window 2 -- killing auditd process and reset audit rules
+   Kill auditd. If the plugin process is also running, kill it.
+   # ps axwwl | grep auditd
+   Delete all audit rules
+   # auditctl -D
+   Make sure that all audit rules are deleted
+   # auditctl -l
+  3.3) Window 3 -- looking output files.
+   Results will be located on /tmp/
    
 ######################################
 ./plot.sh results/auditlib-no/audit-test3_2022:06:09:10:56_i10000_n0_tim
