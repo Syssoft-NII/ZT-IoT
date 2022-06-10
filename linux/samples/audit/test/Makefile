@@ -19,7 +19,8 @@ INCLUDES=-I../audit-userspace/ -I../audit-userspace/auparse/ -I../audit-userspac
 
 all: audit-test audit-test2 audit-test3 audit-test2per regexptest cmdtest \
 	plugin-test \
-	plugin plugin-2 plugin-3 mqtt_sub mqtt_pub user-test
+	plugin plugin-2 plugin-3 mqtt_sub mqtt_pub user-test \
+	stat
 autestlib.o: autestlib.c
 	$(CC) -Wall -g -I../../perf/ -c $<
 
@@ -52,6 +53,8 @@ mylib.o: mylib.c
 selinux: selinux.c
 	gcc -o $@ $< -lselinux
 user-test: user-test.c
+	gcc -o $@ $< -laudit
+stat: stat.c
 	gcc -o $@ $< -laudit
 mqtt_sub: mqtt_sub.c
 	gcc -o $@ $< -lmosquitto
