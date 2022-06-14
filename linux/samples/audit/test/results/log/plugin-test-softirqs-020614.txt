@@ -1,0 +1,45 @@
+Before: 
+[root@nanopc-t4-136-187-99-14][/var/log/audit]
+# cat /proc/softirqs
+                    CPU0       CPU1       CPU2       CPU3       CPU4       CPU5
+          HI:          0          0          8          0          0          0
+       TIMER:    1208760     204758     114423     406001          8          8
+      NET_TX:        792          6          1      16886          0          0
+      NET_RX:     215164       8318       5716       5858          0          0
+       BLOCK:      17066       4793       4364       3383          0          0
+    IRQ_POLL:          0          0          0          0          0          0
+     TASKLET:    1289080        497        633        476          0          0
+       SCHED:   10657305     327867     161616     428029          0          0
+     HRTIMER:         42          0          1          0          0          0
+         RCU:     166902     108888     136549     120361        206        180
+
+After (Diff-cores): 
+
+[root@nanopc-t4-136-187-99-14][/var/log/audit]
+# cat /proc/softirqs
+                    CPU0       CPU1       CPU2       CPU3       CPU4       CPU5
+          HI:          0          0          8          0          0          0
+       TIMER:    1209943     205300     114752     406386         10         11
+      NET_TX:        792          6          1      16899          0          0
+      NET_RX:     215636       8339       5815       5860          0          0
+       BLOCK:      17094       4910       6901       3383          0          0
+    IRQ_POLL:          0          0          0          0          0          0
+     TASKLET:    1390245        499        640        476          0          0
+       SCHED:   10665631     329127     162380     428531          0          0
+     HRTIMER:         42          0          1          0          0          0
+         RCU:     167780     109265     136939     124755        391        199
+
+After (Same-core):
+[root@nanopc-t4-136-187-99-14][/usr/local/etc/audit/plugins.d]
+# cat /proc/softirqs
+                    CPU0       CPU1       CPU2       CPU3       CPU4       CPU5
+          HI:          0          0          8          0          0          0
+       TIMER:    1216396     205957     115658     409091         14         11
+      NET_TX:        796          6          1      16979          0          0
+      NET_RX:     217545       8498       5999       5997          0          0
+       BLOCK:      17296       5064       7041       3387          0          0
+    IRQ_POLL:          0          0          0          0          0          0
+     TASKLET:    1430939        513        646        483          0          0
+       SCHED:   10714820     330099     164350     430991          0          0
+     HRTIMER:         42          0          1          0          0          0
+         RCU:     169221     113887     137377     125521        790        199

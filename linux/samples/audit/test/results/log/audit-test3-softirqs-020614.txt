@@ -1,0 +1,42 @@
+jie@nanopc-t4-136-187-99-14:~/ZT-IoT/linux/samples/audit/test$ cat /proc/softirqs
+                    CPU0       CPU1       CPU2       CPU3       CPU4       CPU5
+          HI:          0          0          8          0          0          0
+       TIMER:    1159724     195290     107239     386603          1          4
+      NET_TX:        757          6          1      16259          0          0
+      NET_RX:     198407       6515       4968       5036          0          0
+       BLOCK:      10866       2082       2256       1723          0          0
+    IRQ_POLL:          0          0          0          0          0          0
+     TASKLET:     644674        400        579        436          0          0
+       SCHED:   10260638     313300     151236     407468          0          0
+     HRTIMER:         40          0          1          0          0          0
+         RCU:     152718      99626     116995     113804         13         17
+jie@nanopc-t4-136-187-99-14:~/ZT-IoT/linux/samples/audit/test$ make run-audit-test3
+# without audit processing on core 4
+sudo auditctl -D
+[sudo] password for jie:
+No rules
+sudo taskset -c 4 ./audit-test3 -i 10000 -e 1 -n
+sudo mv /tmp/audit-test3_*.* results/auditlib-no/
+# with audit processing running on core 4, the same core
+sudo auditctl -D
+No rules
+sudo taskset -c 4 ./audit-test3 -i 10000 -e 1
+sudo mv /tmp/audit-test3_*.* results/auditlib-same/
+# with audit processing runnning on separated core
+sudo auditctl -D
+No rules
+sudo taskset -c 4,5 ./audit-test3 -i 10000 -e 1 -c 4
+sudo mv /tmp/audit-test3_*.* results/auditlib-sep/
+jie@nanopc-t4-136-187-99-14:~/ZT-IoT/linux/samples/audit/test$ cat /proc/softirqs
+                    CPU0       CPU1       CPU2       CPU3       CPU4       CPU5
+          HI:          0          0          8          0          0          0
+       TIMER:    1160426     195799     107398     386998          4          5
+      NET_TX:        773          6          1      16264          0          0
+      NET_RX:     198910       6527       4973       5088          0          0
+       BLOCK:      10987       2082       2256       1733          0          0
+    IRQ_POLL:          0          0          0          0          0          0
+     TASKLET:     653779        400        579        436          0          0
+       SCHED:   10264311     313995     151937     408168          0          0
+     HRTIMER:         40          0          1          0          0          0
+         RCU:     153814     103252     120824     114175         76         64
+jie@nanopc-t4-136-187-99-14:~/ZT-IoT/linux/samples/audit/test$
