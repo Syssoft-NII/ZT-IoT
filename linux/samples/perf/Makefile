@@ -17,5 +17,5 @@ clean:
 run_sample:
 	sh run_task.sh 1 ./sample
 run_mj:
-	./mj
-	./mj -n 10000
+	taskset -c 5 ./mj
+	taskset -c 5 ./mj -n 10000
