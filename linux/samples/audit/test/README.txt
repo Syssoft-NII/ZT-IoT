@@ -80,3 +80,8 @@ HOW TO MEASURE ADUIT COSTS
 ./plot.sh results/auditlib-same/audit-test3_2022:06:09:10:56_i10000_n0_tim
 ./plot.sh results/plugin-same/auplugin_2022:06:10:03:47_i10000_n0_tim
 
+-------
+auditctl -D
+cat /proc/softirqs 
+taskset -c 4 auditd -f -n -s enable -c /usr/local/etc/audit >& /dev/null
+cat /proc/softirqs 

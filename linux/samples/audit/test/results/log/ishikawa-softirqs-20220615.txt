@@ -1,0 +1,101 @@
+# cat /proc/softirqs 
+# sudo taskset -c 4 ./audit-test3 -i 10000 -e 1 -n
+# cat /proc/softirqs 
+  
+                    CPU0       CPU1       CPU2       CPU3       CPU4       CPU5       
+          HI:          0          0          8          0          0          0
+       TIMER:    2536130     320766     240219     848604         28         12
+      NET_TX:       1572          7          1      35628          0          0
+      NET_RX:     433299      20783      11605      11731          0          0
+       BLOCK:      26288      20635      13337       9401          0          0
+    IRQ_POLL:          0          0          0          0          0          0
+     TASKLET:    2945062       1188       1161        983          0          0
+       SCHED:   22486852     509481     332204     896104          0          0
+     HRTIMER:         42          0          1          0          0          0
+         RCU:     291595     177267     238201     238985        813        202
+# [root@nanopc-t4-136-187-99-14][/mnt/home/ishikawa/work/ZTIOT/git/ZT-IoT/linux/samples/audit/test]
+#                     CPU0       CPU1       CPU2       CPU3       CPU4       CPU5       
+          HI:          0          0          8          0          0          0
+       TIMER:    2536139     320768     240222     848614         29         12
+      NET_TX:       1572          7          1      35628          0          0
+      NET_RX:     433314      20784      11605      11731          0          0
+       BLOCK:      26288      20635      13337       9401          0          0
+    IRQ_POLL:          0          0          0          0          0          0
+     TASKLET:    2945062       1188       1161        983          0          0
+       SCHED:   22486862     509497     332218     896118          0          0
+     HRTIMER:         42          0          1          0          0          0
+         RCU:     291614     177285     238226     238997        815        202
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# auditctl -D
+# cat /proc/softirqs 
+# taskset -c 4 auditd -f -n -s enable -c /usr/local/etc/audit >& /dev/null
+# cat /proc/softirqs 
+
+No rules
+[root@nanopc-t4-136-187-99-14][/mnt/home/ishikawa/work/ZTIOT/git/ZT-IoT/linux/samples/audit/test]
+#                     CPU0       CPU1       CPU2       CPU3       CPU4       CPU5       
+          HI:          0          0          8          0          0          0
+       TIMER:    2549989     323094     242857     853593         29         12
+      NET_TX:       1576          7          1      35791          0          0
+      NET_RX:     440439      21485      12073      12141          0          0
+       BLOCK:      26410      20767      13428       9417          0          0
+    IRQ_POLL:          0          0          0          0          0          0
+     TASKLET:    2956402       1232       1179       1006          0          0
+       SCHED:   22589326     516366     337725     902175          0          0
+     HRTIMER:         42          0          1          0          0          0
+         RCU:     293420     178510     239660     240744        815        202
+[root@nanopc-t4-136-187-99-14][/mnt/home/ishikawa/work/ZTIOT/git/ZT-IoT/linux/samples/audit/test]
+# Killed
+[root@nanopc-t4-136-187-99-14][/mnt/home/ishikawa/work/ZTIOT/git/ZT-IoT/linux/samples/audit/test]
+#                     CPU0       CPU1       CPU2       CPU3       CPU4       CPU5       
+          HI:          0          0          8          0          0          0
+       TIMER:    2550216     323178     242899     853657         33         12
+      NET_TX:       1576          7          1      35793          0          0
+      NET_RX:     440546      21517      12077      12143          0          0
+       BLOCK:      26416      20768      13453       9417          0          0
+    IRQ_POLL:          0          0          0          0          0          0
+     TASKLET:    2957374       1233       1179       1006          0          0
+       SCHED:   22590937     516795     337993     902256          0          0
+     HRTIMER:         42          0          1          0          0          0
+         RCU:     293453     178551     239703     240811        829        202
+[root@nanopc-t4-136-187-99-14][/mnt/home/ishikawa/work/ZTIOT/git/ZT-IoT/linux/samples/a
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+SEPARAION
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+# auditctl -D
+# cat /proc/softirqs 
+# taskset -c 4 auditd -f -n -s enable -c /usr/local/etc/audit >& /dev/null
+# cat /proc/softirqs 
+
+No rules
+[root@nanopc-t4-136-187-99-14][/mnt/home/ishikawa/work/ZTIOT/git/ZT-IoT/linux/samples/audit/test]
+#                     CPU0       CPU1       CPU2       CPU3       CPU4       CPU5       
+          HI:          0          0          8          0          0          0
+       TIMER:    2575173     327888     248353     863202         44         18
+      NET_TX:       1584          7          1      36109          0          0
+      NET_RX:     452926      22982      13227      12802          0          0
+       BLOCK:      26759      20956      13626       9581          0          0
+    IRQ_POLL:          0          0          0          0          0          0
+     TASKLET:    2991687       1359       1279       1045          0          0
+       SCHED:   22789087     533161     349150     913247          0          0
+     HRTIMER:         42          0          1          0          0          0
+         RCU:     296799     180527     242424     243088        873        212
+[root@nanopc-t4-136-187-99-14][/mnt/home/ishikawa/work/ZTIOT/git/ZT-IoT/linux/samples/audit/test]
+# Killed
+[root@nanopc-t4-136-187-99-14][/mnt/home/ishikawa/work/ZTIOT/git/ZT-IoT/linux/samples/audit/test]
+#                     CPU0       CPU1       CPU2       CPU3       CPU4       CPU5       
+          HI:          0          0          8          0          0          0
+       TIMER:    2575381     327933     248456     863293         48         20
+      NET_TX:       1584          7          1      36112          0          0
+      NET_RX:     453063      22983      13259      12819          0          0
+       BLOCK:      26763      20957      13658       9581          0          0
+    IRQ_POLL:          0          0          0          0          0          0
+     TASKLET:    2992855       1360       1281       1047          0          0
+       SCHED:   22790684     533397     349360     913496          0          0
+     HRTIMER:         42          0          1          0          0          0
+         RCU:     296855     180557     242454     243163        884        216
+[root@nanopc-t4-136-187-99-14][/mnt/home/ishikawa/work/ZTIOT/git/ZT-IoT/linux/samples/audit/test]
+# [root@nanopc-t4-136-187-99-14][/mnt/home/ishikawa/work/ZTIOT/git/ZT-IoT/linux/samples/audit/test]
+# 

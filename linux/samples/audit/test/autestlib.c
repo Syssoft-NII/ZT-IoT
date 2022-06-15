@@ -477,7 +477,7 @@ measure_dout(FILE *fp, int syscl, int iter)
     uint64_t	tclk;
     double	ttim;
     for (l = 0; l < systab[syscl].ncall; l++)  {
-	fprintf(fp, "# %s ruuning on Core#%d\n", tm_msg[syscl][l], app_core);
+	fprintf(fp, "# %s ruuning on Core#%d iter=%d\n", tm_msg[syscl][l], app_core, iter);
 	for (i = 0; i < iter; i++) {
 	    tclk = ptm_et[l][i] - ptm_st[l][i];
 	    ttim = (double)tclk/(((double)hz)/(double)SCALE);

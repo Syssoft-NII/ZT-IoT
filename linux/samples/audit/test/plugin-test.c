@@ -97,12 +97,13 @@ finalization()
 	printf("%s: going to exiting\n", __func__); fflush(stdout);
     }
     if (mrkr > 0) {
+	/* waiting for finishing application */
+	pthread_mutex_lock(&mx2);
 	measure_show(syscl, iter, npkt, aud_st, aud_et, hflag, vflag, 1);
 	if (fdat) {
 	    measure_dout(fdat, syscl, iter);
+	    fclose(fdat);
 	}
-	/* waiting for finishing application */
-	pthread_mutex_lock(&mx2);
 	pthread_mutex_unlock(&mx3);
     }
     VERBOSE {
