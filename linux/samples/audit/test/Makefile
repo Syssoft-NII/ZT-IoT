@@ -12,14 +12,15 @@ DST=./docker/audit/bin
 
 INCLUDES=-I../audit-userspace/ -I../audit-userspace/auparse/ -I../audit-userspace/lib/ -I../audit-userspace/src/
 
-#all: audit-test audit-test2 audit-test3 regexptest cmdtest plugin plugin-2 plugin-3 selinux mqtt_sub mqtt_pub user-test
+#all: audit-test audit-test2 audit-test3 regexptest cmdtest plugin plugin-2 plugin-3 selinux mqtt_sub mqtt_pub mqtt_test user-test
 
 .c.o:
 	$(CC) -Wall -g -c $<
 
 all: audit-test audit-test2 audit-test3 audit-test2per regexptest cmdtest \
 	plugin-test \
-	plugin plugin-2 plugin-3 mqtt_sub mqtt_pub user-test \
+	plugin plugin-2 plugin-3 \
+	mqtt_test mqtt_publisher mqtt_sub mqtt_pub user-test \
 	stat
 autestlib.o: autestlib.c
 	$(CC) -Wall -g -I../../perf/ -c $<
@@ -56,10 +57,16 @@ user-test: user-test.c
 	gcc -o $@ $< -laudit
 stat: stat.c
 	gcc -o $@ $< -laudit
-mqtt_sub: mqtt_sub.c
-	gcc -o $@ $< -lmosquitto
-mqtt_pub: mqtt_pub.c
-	gcc -o $@ $< -lmosquitto
+mqtt_sub: mqtt_sub.c mqtt_testlib.o corelib.o
+	gcc -Wall -o $@ $< mqtt_testlib.o corelib.o -lmosquitto
+mqtt_pub: mqtt_pub.c mqtt_testlib.o corelib.o
+	gcc -Wall -o $@ $< mqtt_testlib.o corelib.o -lmosquitto
+mqtt_test: mqtt_test.c mqtt_testlib.o corelib.o
+	gcc -Wall -o $@ $< mqtt_testlib.o corelib.o -lmosquitto
+mqtt_publisher: mqtt_publisher.c mqtt_testlib.o corelib.o
+	gcc -Wall -o $@ $< mqtt_testlib.o corelib.o -lmosquitto
+mqtt_testlib.o: mqtt_testlib.c
+
 install:
 	install $(IMAGE) $(DST)/$(AUDISP)
 	install mqtt_sub mqtt_pub $(DST)/

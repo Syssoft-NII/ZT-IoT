@@ -2,43 +2,49 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <mosquitto.h>
+#include "mqtt_testlib.h"
 
+static int	counter = 0;
+static int	iteration;
+
+#define MSG_SIZE	128
+static char	msgbuf[MSG_SIZE];
 int
 main(int argc, char **argv)
 {
-    struct mosquitto *mosq;
+    void	*mosq;
     char	*host = "localhost";
-    char	*topic, *msg;
+    char	*topic = "test";
+    char	*msg;
     int	keepalive = 60;
     int	port = 1883;
-    int ret;
-
-    if (argc == 4) {
-	host = argv[1];
-	topic = argv[2]; msg = argv[3];
-    } else if (argc == 3) {
-	topic = argv[1]; msg = argv[2];
-    } else {
-	fprintf(stderr, "%s <topic> <message>\n", argv[0]);
-	fprintf(stderr, "   | <host> <topic> <message>\n");
+    int	qos = 0;
+    int	verbose;
+    int	iter = 100;
+    int optidx, i;
+    
+    optidx = mqtt_optargs(argc, argv, &host, &port, &topic, &qos,
+			  &iter, NULL, &verbose);
+    if (optidx != argc - 1) {
+	printf("Requiring one argument for a topic message\n");
 	return -1;
     }
-    mosquitto_lib_init();
-    mosq = mosquitto_new(NULL, true, NULL);
-    if(!mosq) {
-        fprintf(stderr, "Error mosquitto_new()\n");
-        mosquitto_lib_cleanup();
-        return -1;
+    msg = argv[optidx];
+    if (verbose) {
+	printf("host= %s port= %d topic= %s qos= %d "
+	       "iter= %d message = \"%s\"\n",
+	       host, port, topic, qos, iter, msg);
     }
-    if(mosquitto_connect(mosq, host, port, keepalive)) {
-        fprintf(stderr, "failed to connect broker.\n");
-        mosquitto_lib_cleanup();
-        return -1;
+    mosq = mqtt_init(host, port, keepalive, iter, verbose);
+    iteration = iter;
+    for (i = 0; i < iter; i++) {
+	snprintf(msgbuf, MSG_SIZE, "SEQ=%d: %s", i, msg);
+	mqtt_publish(mosq, NULL, topic, strlen(msgbuf), msgbuf, qos, 0);
     }
-    mosquitto_publish(mosq, NULL, topic, strlen(msg), msg, 0, false);
-    
-    mosquitto_destroy(mosq);
-    mosquitto_lib_cleanup();
+    printf("counter = %d\n", counter);
+    /* loop forever */
+    mqtt_loop(mosq);
+    /* if error happen */
+    mqtt_fin(mosq);
     return 0;
 }

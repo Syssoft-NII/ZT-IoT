@@ -2,59 +2,29 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <mosquitto.h>
-
-void
-on_message(struct mosquitto *mosq, void *obj, const struct mosquitto_message *message)
-{
-    printf("%s ", message->topic);
-    if (message->payloadlen > 0) {
-        fwrite(message->payload, 1, message->payloadlen, stdout);
-        printf("\n");
-    } else {
-        printf("%s (null)\n", message->topic);
-    }
-    fflush(stdout);
-}
+#include "mqtt_testlib.h"
 
 int
 main(int argc, char **argv)
 {
-    struct mosquitto *mosq;
+    void	*mosq;
     char	*host = "localhost";
-    char	*topic;
+    char	*topic = "test";
     int	keepalive = 60;
     int	port = 1883;
-    int ret;
+    int	qos = 0;
+    int	verbose;
+    int	iter = 100;
 
-    if (argc == 3) {
-	host = argv[1]; topic = argv[2];
-    } else if (argc == 2) {
-	topic = argv[1];
-    } else {
-	fprintf(stderr, "%s <topic>\n", argv[0]);
-	fprintf(stderr, "   | <host> <topic>\n");
-	return -1;
+    mqtt_optargs(argc, argv, &host, &port, &topic, &qos,
+		 &iter, NULL, &verbose);
+    if (verbose) {
+	printf("host= %s port= %d topic= %s qos= %d iter= %d\n",
+	       host, port, topic, qos, iter);
     }
-    mosquitto_lib_init();
-    mosq = mosquitto_new(NULL, true, NULL);
-    if(!mosq) {
-        fprintf(stderr, "Error mosquitto_new()\n");
-        mosquitto_lib_cleanup();
-        return -1;
-    }
-    mosquitto_message_callback_set(mosq, on_message);
-    if(mosquitto_connect(mosq, host, port, keepalive)) {
-        fprintf(stderr, "failed to connect broker.\n");
-        mosquitto_lib_cleanup();
-        return -1;
-    }
-    mosquitto_subscribe(mosq, NULL, topic, 0);
-    ret = mosquitto_loop_forever(mosq, -1, 1);
-    if (ret != MOSQ_ERR_SUCCESS) {
-	fprintf(stderr, "mosquitto_loo_forever error %d\n", ret);
-    }
-    mosquitto_destroy(mosq);
-    mosquitto_lib_cleanup();
+    mosq = mqtt_init(host, port, keepalive, iter, verbose);
+    mqtt_subscribe(mosq, NULL, topic, qos);
+    mqtt_loop(mosq);
+    mqtt_fin(mosq);
     return 0;
 }
