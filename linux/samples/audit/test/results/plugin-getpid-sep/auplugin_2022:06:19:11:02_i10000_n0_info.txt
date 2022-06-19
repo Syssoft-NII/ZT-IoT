@@ -1,0 +1,30 @@
+main: syscl = 0
+<41083> Now Ready for basic measurement.(marker=178, fd=5)....
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, iter, core#, node#
+getpid, 220.502566923, 2204805.166666656, 868, 200557, 308, 1.980474e+04, 10000, 4, 0
+audit processing time (usec): start clock(24054984121802) end clock(24055037484727)
+                            : 2223455.208333333 in 29650 packets
+
+-----------------------------
+Core Affinity:
+	CORE#4 
+Running Core#4 on Node#0, operation: 1800000 kHz, counter: 24000000 Hz
+Current Governor: userspace
+
+Available Freequencies: 408000 600000 816000 1008000 1200000 1416000 1608000 1800000 
+Available Governors: conservative ondemand userspace powersave performance schedutil 
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, iter, core#, node#
+getpid, 220.502566923, 2204805.166666656, 868, 200557, 308, 1.980474e+04, 10000, 4, 0
+audit processing time (usec): start clock(24054984121802) end clock(24055037484727)
+                            : 2223455.208333333 in 29650 packets
+
+-----------------------------
+Core Affinity:
+	CORE#4 
+Running Core#4 on Node#0, operation: 1800000 kHz, counter: 24000000 Hz
+Current Governor: userspace
+
+Available Freequencies: 408000 600000 816000 1008000 1200000 1416000 1608000 1800000 
+Available Governors: conservative ondemand userspace powersave performance schedutil 
+Measured date: Sun Jun 19 11:02:14 2022
+
