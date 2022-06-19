@@ -1,0 +1,21 @@
+main: MQTT Paratial Initialized(0xaaaadbd07de0)
+main: MQTT LOOP START(0xaaaadbd07de0)
+main: Waiting for MQTT connection complete(0xaaaadbd07de0)
+mqtt_on_connect: CONNECTED rc=0
+main: Connected(0xaaaadbd07de0)
+main: syscl = 0 sysnum = 172
+<43130> Now Ready for basic measurement.(marker=178, fd=8, mflag=1)....
+handle_event: npublished = 10009 nevent = 10012
+#syscall, avg without 1st, total without 1st, 1st, max, min, stdev, iter, core#, node#
+getpid, 307.636955362, 3076061.916666672, 931, 428309, 315, 2.751333e+04, 10000, 4, 0
+audit processing time (usec): start clock(24685420283717) end clock(24685494680025)
+                            : 3099846.166666667 in 29232 packets
+
+-----------------------------
+Core Affinity:
+	CORE#4 
+Running Core#4 on Node#0, operation: 1800000 kHz, counter: 24000000 Hz
+Current Governor: userspace
+
+Available Freequencies: 408000 600000 816000 1008000 1200000 1416000 1608000 1800000 
+Available Governors: conservative ondemand userspace powersave performance schedutil 
