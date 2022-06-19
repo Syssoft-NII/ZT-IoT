@@ -4,11 +4,23 @@
 #include <unistd.h>
 #include "mqtt_testlib.h"
 
-static int	counter = 0;
 static int	iteration;
 
 #define MSG_SIZE	128
 static char	msgbuf[MSG_SIZE];
+static volatile int	myiter = 0;
+static int	iter = 100;
+static void	*mx;
+
+void
+published(void *mosq, void *obj, int mid)
+{
+    myiter++;
+    if (myiter == iter) {
+	mqtt_mxsignal(mx);
+    }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -20,7 +32,6 @@ main(int argc, char **argv)
     int	port = 1883;
     int	qos = 0;
     int	verbose;
-    int	iter = 100;
     int optidx, i;
     
     optidx = mqtt_optargs(argc, argv, &host, &port, &topic, &qos,
@@ -36,6 +47,10 @@ main(int argc, char **argv)
 	       host, port, topic, qos, iter, msg);
     }
     mosq = mqtt_init(host, port, keepalive, iter, verbose);
+    mqtt_publish_callback_set(mosq, published);
+    mx = mqtt_mxalloc();
+    /**/
+    mqtt_loop_start(mosq);
     iteration = iter;
     for (i = 0; i < iter; i++) {
 	int	rc;
@@ -46,10 +61,8 @@ main(int argc, char **argv)
 	    break;
 	}
     }
-    printf("counter = %d\n", counter);
-    /* loop forever */
-    mqtt_loop(mosq);
-    /* if error happen */
-    mqtt_fin(mosq);
+    printf("Myiter = %d\n", myiter);
+    mqtt_mxwait(mx);
+    printf("Myiter = %d\n", myiter);
     return 0;
 }

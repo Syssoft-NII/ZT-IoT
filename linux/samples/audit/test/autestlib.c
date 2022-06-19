@@ -133,10 +133,12 @@ appl(void *f)
     switch (syscl) {
     case SYS_GETID:
 	//MEASURE_SYSCALL(SYS_GETID, gettid());
-	MEASURE_SYSCALL(SYS_GETID, getpid());
+	// pid 
+	MEASURE_SYSCALL(SYS_GETID, syscall(172));
 	break;
     case SYS_GETUID:
-	MEASURE_SYSCALL(SYS_GETUID, getuid());
+	//MEASURE_SYSCALL(SYS_GETUID, getuid());
+	MEASURE_SYSCALL(SYS_GETUID, syscall(174));
 	break;
     case SYS_OPEN_CLOSE:
 	MEASURE_OPEN_CLOSE(SYS_OPEN_CLOSE);
@@ -238,6 +240,7 @@ url_parse(char *cp, char **host, char **proto, int *port)
 #define ARG_PREFIX	"prefix="
 #define ARG_ITER	"iter="
 #define ARG_CPU		"cpu="
+#define ARG_SYSCALL	"sys="
 
 /*
  * TODO: CLEAN UP!!
@@ -245,13 +248,14 @@ url_parse(char *cp, char **host, char **proto, int *port)
 void
 arg_parse(const char *cp, char **prefix,
 	  char	**url, char **protocol, char **host, int *port,
-	  int *iter, int *cpu) 
+	  int *iter, int *cpu, int *syscall) 
 {
     char	*nxt;
     size_t	slen = strlen(ARG_SERVER);
     size_t	flen = strlen(ARG_PREFIX);
     size_t	ilen = strlen(ARG_ITER);
     size_t	clen = strlen(ARG_CPU);
+    size_t	syslen = strlen(ARG_SYSCALL);
     while (*cp) {
 	if (!strncmp(ARG_SERVER, cp, slen)) {
 	    cp += slen;
@@ -304,6 +308,21 @@ arg_parse(const char *cp, char **prefix,
 	    } else {
 		tmp = strdup(cp);
 		*cpu = atoi(tmp);
+		free(tmp);
+		break;
+	    }
+	} else if (!strncmp(ARG_SYSCALL, cp, syslen)) {
+	    char	*tmp;
+	    cp += clen;
+	    nxt = index(cp, ',');
+	    if (nxt) {
+		tmp = strndup(cp, nxt - cp);
+		if (syscall) *syscall = atoi(tmp);
+		free(tmp);
+		cp = nxt + 1;
+	    } else {
+		tmp = strdup(cp);
+		if (syscall) *syscall = atoi(tmp);
 		free(tmp);
 		break;
 	    }

@@ -12,16 +12,16 @@ DST=./docker/audit/bin
 
 INCLUDES=-I../audit-userspace/ -I../audit-userspace/auparse/ -I../audit-userspace/lib/ -I../audit-userspace/src/
 
-#all: audit-test audit-test2 audit-test3 regexptest cmdtest plugin plugin-2 plugin-3 selinux mqtt_sub mqtt_pub mqtt_test user-test
+#all: audit-test audit-test2 audit-test3 regexptest cmdtest plugin plugin-2 plugin-3 selinux mqtt_sub mqtt_pub mqtt_pub2 mqtt_test user-test
 
 .c.o:
-	$(CC) -Wall -g -c $<
+	$(CC) -O2 -Wall -g -c $<
 
 all: audit-test audit-test2 audit-test3 audit-test2per regexptest cmdtest \
-	plugin-test \
+	plugin-test plugin-test3 \
 	plugin plugin-2 plugin-3 \
-	mqtt_test mqtt_publisher mqtt_sub mqtt_pub user-test \
-	stat
+	mqtt_test mqtt_publisher mqtt_sub mqtt_pub mqtt_pub2 mqtt_pub3 \
+	user-test stat
 autestlib.o: autestlib.c
 	$(CC) -Wall -g -I../../perf/ -c $<
 
@@ -42,6 +42,9 @@ plugin: plugin.c
 plugin-test: plugin-test.c autestlib.o
 	$(CC) $(INCLUDES) -Wall -g -O2 -I/usr/local/include -o $@ $< autestlib.o ../../perf/measurelib.o \
 	-L/usr/local/lib/ -lauparse -laudit -lm
+plugin-test3: plugin-test3.c autestlib.o mqtt_testlib.o
+	$(CC) $(INCLUDES) -Wall -g -O2 -I/usr/local/include -o $@ $< autestlib.o ../../perf/measurelib.o mqtt_testlib.o \
+	-L/usr/local/lib/ -lauparse -laudit -lm -lmosquitto
 autestlib.o: autestlib.c autestlib.h
 plugin-2: plugin-2.c sysname.h
 	$(CC) -g -I/usr/local/include -o $@ $< -L/usr/local/lib/ -lauparse -laudit
@@ -60,6 +63,10 @@ stat: stat.c
 mqtt_sub: mqtt_sub.c mqtt_testlib.o corelib.o
 	gcc -Wall -o $@ $< mqtt_testlib.o corelib.o -lmosquitto
 mqtt_pub: mqtt_pub.c mqtt_testlib.o corelib.o
+	gcc -Wall -o $@ $< mqtt_testlib.o corelib.o -lmosquitto
+mqtt_pub2: mqtt_pub2.c mqtt_testlib.o corelib.o
+	gcc -Wall -o $@ $< mqtt_testlib.o corelib.o -lmosquitto
+mqtt_pub3: mqtt_pub3.c mqtt_testlib.o corelib.o
 	gcc -Wall -o $@ $< mqtt_testlib.o corelib.o -lmosquitto
 mqtt_test: mqtt_test.c mqtt_testlib.o corelib.o
 	gcc -Wall -o $@ $< mqtt_testlib.o corelib.o -lmosquitto
@@ -104,3 +111,12 @@ run-audit-test3:
 	sudo mv /tmp/audit-test3_*.* results/auditlib-sep/
 run-plugin-test:
 	taskset -c 4 auditd -f -n -s enable -c /usr/local/etc/audit >&/dev/null
+#
+#
+run-rough:
+	taskset -c 4 ./mqtt_sub -v -Q 1 -i 10000 &
+	taskset -c 5 ./mqtt_pub3 -v -i 10000 -Q 1 "test"
+#	taskset -c 4 ./mqtt_sub -v -Q 1 -i 1000000 &
+#	taskset -c 5 ./mqtt_pub3 -v -i 1000000 -Q 1 "test"
+run-broker:
+	taskset -c 4 ./mqtt_sub -v -Q 1 -i 10000

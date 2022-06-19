@@ -21,7 +21,7 @@ extern char	*sysname[];
 
 extern void	arg_parse(const char *cp, char **logfile,
 			  char	**url, char **protocol, char **host,
-			  int *port, int *iter, int *cpu);
+			  int *port, int *iter, int *cpu, int *syscall);
 extern FILE	*out_open(char *fbuf, const char *prefix, int iter, int ntries,
 			  const char *type, const char *ext, char *fname);
 extern int	clone_init(int iter, int syscl, int vflag, int cpu,

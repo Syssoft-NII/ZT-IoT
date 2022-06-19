@@ -9,6 +9,8 @@
 #define _GNU_SOURCE
 #define __USE_GNU
 #include <sched.h>
+#include <pthread.h>
+#include <signal.h>
 #include "mqtt_testlib.h"
 #include "tsc.h"
 
@@ -26,15 +28,67 @@
 
 extern int	core_bind(int cpu);
 
-#define SCALE	1000
+#define SCALE	1000000
 
-static int	iteration = 100;
+volatile int	mqtt_connected = 0;
+int	mqtt_iter = 100;
+char	mqtt_lastmsg[1024];
 static int	verbose = 0;
 static int	debugflag = 0;
 static uint64_t	tm_st, tm_et, tm_hz;
 static int	subscriber_bfd = -1;
 static int	subscriber_efd = -1;
 static int	publisher_bfd = -1;
+
+/* usec */
+uint64_t
+clock_time()
+{
+    struct timeval tv;
+    uint64_t	val ;
+    gettimeofday (&tv, NULL);
+    val = tv.tv_sec*1000000 + tv.tv_usec;
+    return val;
+}
+
+void
+mqtt_setsighandler(int signo, void (*hndl)(int))
+{
+    struct sigaction sa;
+    sa.sa_flags = 0;
+    sigemptyset(&sa.sa_mask);
+    /* Set handler for the ones we care about */
+    sa.sa_handler = hndl;
+    sigaction(signo, &sa, NULL);
+}
+
+void*
+mqtt_mxalloc()
+{
+    pthread_mutex_t	*mxp;
+    mxp = malloc(sizeof(pthread_mutex_t));
+    if (mxp == NULL) {
+	fprintf(stderr, "Cannot allocate mutex\n");
+	exit(-1);
+    }
+    pthread_mutex_init(mxp, 0);
+    pthread_mutex_lock(mxp);
+    return mxp;
+}
+
+void
+mqtt_mxsignal(void *p)
+{
+    pthread_mutex_t	*mxp = p;
+    pthread_mutex_unlock(mxp);
+}
+
+void
+mqtt_mxwait(void *p)
+{
+    pthread_mutex_t	*mxp =p;
+    pthread_mutex_lock(mxp);
+}
 
 char *
 mqtt_int2string(int val)
@@ -94,17 +148,26 @@ mqtt_lockclose(int fd)
 }
 
 static void
+mqtt_on_connect(struct mosquitto *mosq, void *obj, int rc)
+{
+    printf("%s: CONNECTED rc=%d\n", __func__, rc);
+    mqtt_connected = 1;
+}
+
+static void
 mqtt_on_message(struct mosquitto *mosq, void *obj, const struct mosquitto_message *message)
 {
-    --iteration;
+    --mqtt_iter;
+    /**/
+    strncpy(mqtt_lastmsg, message->payload, 128);
     DEBUG {
 	char	buf[128];
 	strncpy(buf, message->payload, 10);
 	buf[10] = 0;
-	printf("%s:<%d> topc=\"%s\" msg(%s)\n", __func__, iteration, message->topic, buf);
+	printf("%s:<%d> topc=\"%s\" msg(%s)\n", __func__, mqtt_iter, message->topic, buf);
 	fflush(stdout);
     }
-    if (iteration == 0) {
+    if (mqtt_iter == 0) {
 	DEBUG {
 	    printf("%s: subscriber_bfd= %d\n", __func__, subscriber_bfd); fflush(stdout);
 	}
@@ -129,11 +192,11 @@ mqtt_on_message(struct mosquitto *mosq, void *obj, const struct mosquitto_messag
 static void
 mqtt_on_publish(struct mosquitto *mosq, void *obj, int mid)
 {
-    --iteration;
+    --mqtt_iter;
     DEBUG {
-	printf("%s: iteration(%d)\n", __func__, iteration); fflush(stdout);
+	printf("%s: mqtt_iter(%d)\n", __func__, mqtt_iter); fflush(stdout);
     }
-    if (iteration == 0) {
+    if (mqtt_iter == 0) {
 	mqtt_fin(mosq);
 	tm_et = tick_time();
 	if (verbose) {
@@ -201,7 +264,7 @@ mqtt_init(char *host, int port, int keepalive, int iter, int verb)
     struct mosquitto *mosq;
 
     verbose = verb;
-    iteration = iter;
+    mqtt_iter = iter;
     tm_hz = tick_helz(0);
     if (verbose) {
 	printf("%s: hz(%ld) debugflag=%d\n", __func__, tm_hz, debugflag);
@@ -217,6 +280,7 @@ mqtt_init(char *host, int port, int keepalive, int iter, int verb)
         mosquitto_lib_cleanup();
 	exit(-1);
     }
+    mosquitto_connect_callback_set(mosq, mqtt_on_connect);
     mosquitto_message_callback_set(mosq, mqtt_on_message);
     mosquitto_publish_callback_set(mosq, mqtt_on_publish);
     if(mosquitto_connect(mosq, host, port, keepalive)) {
@@ -225,6 +289,22 @@ mqtt_init(char *host, int port, int keepalive, int iter, int verb)
         return NULL;
     }
     return (void*) mosq;
+}
+
+int
+mqtt_loop_start(void *vp)
+{
+    struct mosquitto *mosq = vp;
+    return mosquitto_loop_start(mosq);
+}
+
+void
+mqtt_publish_callback_set(void *vp, void (*func)(void*, void*, int))
+{
+    struct mosquitto *mosq = vp;
+    void	 (*mosq_func)(struct mosquitto*, void*, int);
+    mosq_func = (void(*)(struct mosquitto*, void*, int))func;
+    mosquitto_publish_callback_set(mosq, mosq_func);
 }
 
 void
@@ -236,14 +316,16 @@ mqtt_fin(void *vp)
     mosquitto_lib_cleanup();
 }
 
-#if 0
 void
 mqtt_loop_forever(void *vp)
 {
+    int	rc;
     struct mosquitto *mosq = (struct mosquitto *) vp;
-    mosquitto_loop_forever(mosq, -1, 1);
+    rc = mosquitto_loop_forever(mosq, -1, 1);
+    if(rc != MOSQ_ERR_SUCCESS){
+	fprintf(stderr, "Error: %s\n", mosquitto_strerror(rc));
+    }
 }
-#endif
 
 void
 mqtt_subscribe(void *vp, int *mid, char *topic, int qos)
@@ -273,26 +355,24 @@ mqtt_loop(void *vp)
      * 3rd arg: max_packets, unused and must be set to 1 */
     ret = mosquitto_loop_forever(mosq, -1, 1);
     if (ret != MOSQ_ERR_SUCCESS) {
-	fprintf(stderr, "mosquitto_loo_forever error %d\n", ret);
+	fprintf(stderr, "mosquitto_loop_forever error %d\n", ret);
     }
 }
 
 /*
  *	mqtt_publisher:
- *		argv[0] = (char*) host
- *		argv[1] = (int) port,
- *		argv[2] = (int) keepalive, 
- *		argv[3] = (char*) topic,
- *		argv[4] = (int) message length,
- *		argv[5] = (int) iteration
- *		argv[6] = (int) cpu
- *		argv[7] = (int) sub_bfd
- *		argv[8] = (int) vflag
+ *		argv[0] = "publisher"
+ *		argv[1] = (char*) host
+ *		argv[2] = (int) port
+ *		argv[3] = (int) keepalive
+ *		argv[4] = (char*) topic
+ *		argv[5] = (int) message length
+ *		argv[6] = (int) iteration
+ *		argv[7] = (int) cpu
+ *		argv[8] = (int) sub_bfd
+ *		argv[9] = (int) vflag
+ *		argv[10] = 0
  */
-#if 0
-void
-mqtt_publisher(void **argv)
-#endif
 void
 mqtt_publisher(char **argv)
 {
@@ -303,34 +383,18 @@ mqtt_publisher(char **argv)
     char	*msg;
     void	*mosq;
 
-    host = (char*) argv[1];
+    host = argv[1];
     port = atoi(argv[2]);
     keepalive = atoi(argv[3]);
     topic = argv[4];
-    len =  atoi(argv[5]);
-    iter = atoi(argv[6]);
-    cpu = atoi(argv[7]);
+    len   = atoi(argv[5]);
+    iter  = atoi(argv[6]);
+    cpu   = atoi(argv[7]);
     sub_bfd = atoi(argv[8]);
-    vflag = atoi(argv[9]);
+    vflag  = atoi(argv[9]);
 
     app_core = core_bind(cpu);
 
-    printf("%s: host= %s port= %d keepalive=%d topic= %s "
-	   "len=%d iter= %d core= %d sub_bfd= %d\n",
-	   __func__, host, port, keepalive, topic, len, iter, app_core, sub_bfd);
-
-#if 0
-    host = (char*) argv[0];
-    port = (int64_t) ((char*) argv[1]);
-    keepalive = (int64_t) ((char*) argv[2]);
-    topic = (char*) argv[3];
-    len =  (int64_t) ((char*) argv[4]);
-    iter = (int64_t) ((char*) argv[5]);
-    cpu = (int64_t) ((char*) argv[6]);
-    sub_bfd = (int64_t) ((char*) argv[7]);
-    vflag = (int64_t) ((char*) argv[8]);
-    app_core = core_bind(cpu);
-#endif
     if (len < 1024) {
 	len = 1024;
     }
@@ -354,12 +418,6 @@ mqtt_publisher(char **argv)
 	    data = mqtt_lock_op(SYNC_FILE, SYNC_OP_READ, 1);
 	}
     }
-#if 0
-    /* Synchronization with subscriber */
-    lockf(sub_bfd, F_ULOCK, 0);
-    publisher_bfd = mqtt_lockopen(PUB_LOCKF_BEGIN);
-#endif
-    printf("%s: Publishing debugflag=%d\n", __func__, debugflag); fflush(stdout);
     DEBUG {
 	printf("%s: Publishing len(%d)\n", __func__, len); fflush(stdout);
     }
@@ -374,10 +432,6 @@ mqtt_publisher(char **argv)
 	}
 	printf("%s: %d\n", __func__, i);
     }
-#if 0
-    lockf(publisher_bfd, F_ULOCK, 0);
-    lockf(publisher_bfd, F_ULOCK, 0);
-#endif
     //mqtt_fin(mosq);
     /* loop forever */
     mqtt_loop(mosq);
