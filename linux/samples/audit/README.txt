@@ -27,9 +27,11 @@ $ make
 $ sudo make install
 $ export LD_LIBRARY_PATH=:/usr/local/lib:$LD_LIBRART_PATH
 $ export export MANPATH=:/usr/local/man:$MANPATH
+$ mkdir -p /var/log/auditd
 
 (1.2) How to install mosquitto
 $ sudo apt-get install -y libcjson-dev xsltproc libssl-dev
+$ sudo apt-get install -y docbook-xsl
 $ sudo git clone https://github.com/eclipse/mosquitto.git
 $ make
   # error happens during man page creation.
