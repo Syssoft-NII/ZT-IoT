@@ -54,11 +54,22 @@ struct i2c_smbus_ioctl_data {
 };
 
 void
+printhex(unsigned char *cp, int len)
+{
+    int	i;
+    printf("len(%d): ", len);
+    for (i = 0; i < len; i++) {
+	printf("%02x", cp[i]);
+    }
+    printf("\n");
+}
+
+void
 do_ioctl(int file, char read_write, __u8 command, int size, union i2c_smbus_data *data)
 {
     struct i2c_smbus_ioctl_data args;
     __s32 err;
-    
+
     args.read_write = read_write;
     args.command = command;
     args.size = size;
@@ -70,6 +81,7 @@ do_ioctl(int file, char read_write, __u8 command, int size, union i2c_smbus_data
     printf("%s: data= %p\n", __func__, args.data);
     err = ioctl(file, I2C_SMBUS, &args);
     printf("err=%d\n", err);
+    printhex((char*) &args, sizeof(args));
 }
 
 int
