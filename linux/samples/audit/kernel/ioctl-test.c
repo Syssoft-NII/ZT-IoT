@@ -64,7 +64,7 @@ printhex(unsigned char *cp, int len)
     printf("\n");
 }
 
-void
+int
 do_ioctl(int file, char read_write, __u8 command, int size, union i2c_smbus_data *data)
 {
     struct i2c_smbus_ioctl_data args;
@@ -85,6 +85,15 @@ do_ioctl(int file, char read_write, __u8 command, int size, union i2c_smbus_data
 }
 
 int
+i2c_smbus_write_word_data(int file, unsigned char command, unsigned int value)
+{
+	union i2c_smbus_data data;
+	data.word = value;
+	return do_ioctl(file, I2C_SMBUS_WRITE, command,
+			I2C_SMBUS_WORD_DATA, &data);
+}
+
+int
 main(int argc, char **argv)
 {
     int	file;
@@ -100,7 +109,12 @@ main(int argc, char **argv)
     do_ioctl(file, I2C_SMBUS_READ, 0, I2C_SMBUS_BYTE, &data);
     do_ioctl(file, I2C_SMBUS_WRITE, 0, I2C_SMBUS_QUICK, NULL);
     do_ioctl(file, I2C_SMBUS_WRITE, 123, I2C_SMBUS_BYTE, NULL);
+    do_ioctl(file, I2C_SMBUS_WORD_DATA, 123, I2C_SMBUS_BYTE_DATA, &data); 
 #endif
-    do_ioctl(file, I2C_SMBUS_WRITE, 123, I2C_SMBUS_BYTE_DATA, &data); 
+#define ZOOM	0x01
+#define FOCUS	0x00
+#define MOTOR_X	0x05
+#define MOTOR_Y	0x06
+    i2c_smbus_write_word_data(file, MOTOR_X, 10);
     return 0;
 }
