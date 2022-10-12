@@ -79,6 +79,9 @@ do_ioctl(int file, char read_write, __u8 command, int size, union i2c_smbus_data
     printf("%s: commmand= 0x%x\n", __func__, args.command);
     printf("%s: size= 0x%x\n", __func__, args.size);
     printf("%s: data= %p\n", __func__, args.data);
+    if (data != NULL) {
+	printf("%s: data.word = 0x%x\n", __func__, data->word);
+    }
     err = ioctl(file, I2C_SMBUS, &args);
     printf("err=%d\n", err);
     printhex((char*) &args, sizeof(args));
