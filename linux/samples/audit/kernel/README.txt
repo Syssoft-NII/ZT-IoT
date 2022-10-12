@@ -14,15 +14,19 @@ version 5.4.230:
 If you use another Kernel version, don't copy them, but make sure the
 source differences and update them using the diff tool.
 
-(2) The ioctl-test.c code is a test program.
+(2) A new record type for iotcl system has been introduced, KERNEL_OTHER.
+    This record contains the structure data of the third argument.
+    See (4) for more details.
+
+(3) The ioctl-test.c code is a test program.
     $ ./ioctl-test /dev/i2c-7 ##???
     NOTE that the actual device test has NOT yet been done.
 
-(3) The LOG.txt file explains a log of the "ioctl-test" running on QEMU as follows:
+(4) The LOG.txt file explains a log of the "ioctl-test" running on QEMU as follows:
     $ echo >/tmp/123
     $ ./ioctl-test /tmp/123
     That is, the i2c device is not opened. So the ioctl system call fails, but
-    the structure of ioctl's third argument is visible,
+    the structure data of ioctl's third argument is visible,
     	i.e., the "data1" field.
     The "data2" field is invisible in this log because the i2c device is not
     opened. If the i2c device is successfully opened, The "data2" field
