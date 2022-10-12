@@ -1531,21 +1531,36 @@ static void audit_log_exit(void)
 #define ARM64_SYS_IOCTL	29
 #define IOBUF_LEN 40
 	if (context->major == ARM64_SYS_IOCTL) {
-	    char	tbuf[IOBUF_LEN];
-	    ab = audit_log_start(context, GFP_KERNEL, AUDIT_SOCKADDR);
-	    if (!ab)
-		return;
-	    if (context->argv[2]) {
-		if (copy_from_user(tbuf, (const void*) context->argv[2], IOBUF_LEN)) {
-		    audit_log_format(ab, "saddr=-1");
+		char	tbuf[IOBUF_LEN];
+		ab = audit_log_start(context, GFP_KERNEL, AUDIT_KERNEL_OTHER);
+		if (!ab)
+			return;
+		if (context->argv[2]) {
+			if (copy_from_user(tbuf,
+					   (const void*) context->argv[2],
+					   IOBUF_LEN)) {
+				audit_log_format(ab, "data1=-");
+			} else {
+				audit_log_format(ab, "data1=");
+				audit_log_n_hex(ab, (void *)tbuf, IOBUF_LEN);
+			}
 		} else {
-		    audit_log_format(ab, "saddr=");
-		    audit_log_n_hex(ab, (void *)tbuf, IOBUF_LEN);
+			audit_log_format(ab, "data1=0");
 		}
-	    } else {
-		audit_log_format(ab, "saddr=0");
-	    }
-	    audit_log_end(ab);
+		if (context->ioctl.npointer > 0) {
+			size_t sz = context->ioctl.usize[0] > IOBUF_LEN ? IOBUF_LEN : context->ioctl.usize[0];
+			if (copy_from_user(tbuf,
+					   (const void*) context->ioctl.uaddr[0],
+					   sz)) {
+				audit_log_format(ab, "data2=-");
+			} else {
+				audit_log_format(ab, "data2=");
+				audit_log_n_hex(ab, (void *)tbuf, IOBUF_LEN);
+			}
+		} else {
+			audit_log_format(ab, " data2=-");
+		}
+		audit_log_end(ab);
 	}
 #endif /* ZT_IOT */
 
@@ -1732,6 +1747,11 @@ void __audit_syscall_entry(int major, unsigned long a1, unsigned long a2,
 	context->current_state  = state;
 	context->ppid       = 0;
 	ktime_get_coarse_real_ts64(&context->ctime);
+#ifdef ZT_IOT
+	if (major == ARM64_SYS_IOCTL) {
+		context->ioctl.npointer = 0;
+	}
+#endif /* ZT_IOT */
 }
 
 /**
@@ -2713,3 +2733,19 @@ struct list_head *audit_killed_trees(void)
 		return NULL;
 	return &ctx->killed_trees;
 }
+
+#ifdef ZT_IOT
+static inline void __audit_ioctl(unsigned long uaddr, size_t sz)
+{
+    struct audit_context *context = audit_context();
+    context->ioctl.npointer = 1;
+    context->ioctl.uaddr[0] = uaddr;
+    context->ioctl.usize[0] = sz;
+}
+void audit_ioctl(unsigned long uaddr, size_t sz)
+{
+	if (unlikely(!audit_dummy_context())) {
+		return __audit_ioctl(uaddr, sz);
+	}
+}
+#endif /* ZT_IOT */

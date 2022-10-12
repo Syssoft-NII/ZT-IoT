@@ -1,3 +1,18 @@
+type=SYSCALL msg=audit(1665562668.069:344): arch=c00000b7 syscall=29 success=no exit=-25 a0=3 a1=720 a2=ffffc7243698 a3=ffffb3951b30 items=0 ppid=999 pid=1128 auid=1000 uid=1000 gid=1000 euid=1000 suid=1000 fsuid=1000 egid=1000 sgid=1000 fsgid=1000 tty=pts0 ses=3 comm="a.out" exe="/home/ishikawa/work/ZT-IoT/linux/samples/audit/kernel/a.out" key=(null)ARCH=aarch64 SYSCALL=ioctl AUID="ishikawa" UID="ishikawa" GID="ishikawa" EUID="ishikawa" SUID="ishikawa" FSUID="ishikawa" EGID="ishikawa" SGID="ishikawa" FSGID="ishikawa"
+type=KERNEL_OTHER msg=audit(1665562668.069:344): data1=0005FFFF03000000D03624C7FFFF0000006B1E61C02CC151003724C7FFFF000070FC87DCAAAA0000 data2=-
+type=PROCTITLE msg=audit(1665562668.069:344): proctitle="-bash"
+
+is the following data:
+do_ioctl: read_write= 0x0
+do_ioctl: commmand= 0x5
+do_ioctl: size= 0x3
+do_ioctl: data= 0xffffc72436d0
+do_ioctl: data.word = 0xa
+err=-1
+len(16): 0005ffff03000000d03624c7ffff0000
+
+
+----------------------------- OLD --------------------
 type=SYSCALL msg=audit(1665473578.790:3535): arch=c00000b7 syscall=29 success=no exit=-25 a0=3 a1=720 a2=fffff0277b98 a3=ffffa4f4db30 items=0 ppid=1050 pid=1979 auid=1000 uid=1000 gid=1000 euid=1000 suid=1000 fsuid=1000 egid=1000 sgid=1000 fsgid=1000 tty=pts1 ses=4 comm="a.out" exe="/home/ishikawa/work/a.out" key=(null)ARCH=aarch64 SYSCALL=ioctl AUID="ishikawa" UID="ishikawa" GID="ishikawa" EUID="ishikawa" SUID="ishikawa" FSUID="ishikawa" EGID="ishikawa" SGID="ishikawa" FSGID="ishikawa"
 type=SOCKADDR msg=audit(1665473578.790:3535): saddr=007BD40702000000E07B27F0FFFF0000008DD407E9F97BFE107C27F0FFFF0000106EDDA4FFFF0000SADDR=unknown-family(31488)
 
@@ -8,3 +23,4 @@ do_ioctl: size= 0x2
 do_ioctl: data= 0xfffff0277be0
 err=-1
 len(16): 007bd40702000000e07b27f0ffff0000
+
