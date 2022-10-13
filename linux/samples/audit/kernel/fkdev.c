@@ -253,7 +253,7 @@ fkdev_fasync(int i1, struct file *filep, int i2)
 }
 
 static int
-fkdev_lock(struct file *, int, struct file_lock *)
+fkdev_lock(struct file *fp, int, struct file_lock *fl)
 {
 #ifdef VERBOSE
     printk("%s: called\n", __func__);
@@ -262,7 +262,8 @@ fkdev_lock(struct file *, int, struct file_lock *)
 }
 
 static ssize_t
-fkdev_sendpage(struct file *, struct page *, int, size_t, loff_t *, int)
+fkdev_sendpage(struct file *fp, struct page *pg, int,
+	       size_t sz, loff_t *off, int t)
 {
 #ifdef VERBOSE
     printk("%s: called\n", __func__);
@@ -271,7 +272,9 @@ fkdev_sendpage(struct file *, struct page *, int, size_t, loff_t *, int)
 }
     
 static unsigned long
-fkdev_get_unmapped_area(struct file *, unsigned long, unsigned long, unsigned long, unsigned long)
+fkdev_get_unmapped_area(struct file *fp, unsigned long ul1,
+			unsigned long ul2, unsigned long ul3,
+			unsigned long ul4)
 {
 #ifdef VERBOSE
     printk("%s: called\n", __func__);
@@ -280,7 +283,7 @@ fkdev_get_unmapped_area(struct file *, unsigned long, unsigned long, unsigned lo
 }
     
 static int
-fkdev_check_flags(int)
+fkdev_check_flags(int f)
 {
 #ifdef VERBOSE
     printk("%s: called\n", __func__);
@@ -289,7 +292,7 @@ fkdev_check_flags(int)
 }
     
 static int
-fkdev_flock (struct file *, int, struct file_lock *)
+fkdev_flock (struct file *fp , int a1, struct file_lock *fl)
 {
 #ifdef VERBOSE
     printk("%s: called\n", __func__);
@@ -298,7 +301,8 @@ fkdev_flock (struct file *, int, struct file_lock *)
 }
 
 static ssize_t
-fkdev_splice_write(struct pipe_inode_info *, struct file *, loff_t *, size_t, unsigned int)
+fkdev_splice_write(struct pipe_inode_info *inf, struct file *fp,
+		   loff_t *off, size_t sz, unsigned int a1)
 {
 #ifdef VERBOSE
     printk("%s: called\n", __func__);
@@ -307,7 +311,8 @@ fkdev_splice_write(struct pipe_inode_info *, struct file *, loff_t *, size_t, un
 }
     
 static ssize_t
-fkdev_splice_read(struct file *, loff_t *, struct pipe_inode_info *, size_t, unsigned int)
+fkdev_splice_read(struct file *fp, loff_t *off,
+		  struct pipe_inode_info *inf, size_t sz, unsigned int a1)
 {
 #ifdef VERBOSE
     printk("%s: called\n", __func__);
@@ -316,7 +321,7 @@ fkdev_splice_read(struct file *, loff_t *, struct pipe_inode_info *, size_t, uns
 }
 
 static int
-fkdev_setlease(struct file *, long, struct file_lock **, void **)
+fkdev_setlease(struct file *fp, long a1, struct file_lock **fl, void **a2)
 {
 #ifdef VERBOSE
     printk("%s: called\n", __func__);
@@ -345,7 +350,7 @@ fkdev_show_fdinfo(struct seq_file *m, struct file *f)
 
 #ifndef CONFIG_MMU
 static unsigned
-fkdev_mmap_capabilities(struct file *)
+fkdev_mmap_capabilities(struct file *fp)
 {
 #ifdef VERBOSE
     printk("%s: called\n", __func__);
@@ -355,8 +360,8 @@ fkdev_mmap_capabilities(struct file *)
 #endif
 
 static ssize_t
-fkdev_copy_file_range(struct file *, loff_t, struct file *,
-			loff_t, size_t, unsigned int)
+fkdev_copy_file_range(struct file *fp1, loff_t off1, struct file *fp2,
+			loff_t off2, size_t sz, unsigned int a1)
 {
 #ifdef VERBOSE
     printk("%s: called\n", __func__);
@@ -376,7 +381,7 @@ fkdev_remap_file_range(struct file *file_in, loff_t pos_in,
 }
 
 static int
-fkdev_fadvise(struct file *, loff_t, loff_t, int)
+fkdev_fadvise(struct file *fp, loff_t off1, loff_t off2, int a1)
 {
 #ifdef VERBOSE
     printk("%s: called\n", __func__);
