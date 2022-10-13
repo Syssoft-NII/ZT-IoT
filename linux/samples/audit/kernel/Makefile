@@ -1,4 +1,10 @@
-CONFIG_MODULE_SIG=n
+#
+# Unless set "CONFIG_MODULE_SIG=n" in the Linux kernel configuration,
+# the following messages will appear in kernel message when the fkdev module
+# is loaded:
+#   fkdev: loading out-of-tree module taints kernel.
+#   fkdev: module verification failed: signature and/or required key missing
+#          - tainting kernel
 
 obj-m := fkdev.o
 all: fkdev.ko ioctl-test
