@@ -433,7 +433,11 @@ struct file_operations fkdev_fops = {
 static int
 fkdev_init(void)
 {
+#ifdef ZT_IOT
+    printk("%s: ZT_IOT Initializing\n", __func__);
+#else
     printk("%s: Initializing\n", __func__);
+#endif
     register_chrdev(FKDEV_MAJOR, FKDEV_NAME, &fkdev_fops);
     printk("%s: Done\n", __func__);
     return 0;
