@@ -75,6 +75,7 @@ do_ioctl(int file, char read_write, __u8 command, int size, union i2c_smbus_data
     args.size = size;
     args.data = data;
 
+    printf("%s: &arg= %p\n", __func__, &args);
     printf("%s: read_write= 0x%x\n", __func__, args.read_write);
     printf("%s: commmand= 0x%x\n", __func__, args.command);
     printf("%s: size= 0x%x\n", __func__, args.size);

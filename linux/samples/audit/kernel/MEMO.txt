@@ -1,0 +1,54 @@
+[34209.567601] fakedevice: loading out-of-tree module taints kernel.
+[34209.579065] fakedevice: module verification failed: signature and/or required key missing - tainting kernel
+[34209.601780] fkdevice_init: Hello
+
+
+Focuser.py
+        self.write(self.CHIP_I2C_ADDR, info["REG_ADDR"], value)
+
+addr: ZOOM 0x01, Focus 0x00, Motor_x 0x05, Motor_y 0x06
+CHIP_I2C_ADDR = 0x0C
+        self.write(self.CHIP_I2C_ADDR, reg_addr, value)
+
+def write(self, chip_addr, reg_addr, value):
+        if value < 0:
+            value = 0
+        value = ((value & 0x00FF)<< 8) | ((value & 0xFF00) >> 8)
+        return self.bus.write_word_data(chip_addr,reg_addr,value)
+
+self.bus.write_word_data(0x0C, reg_addr, value)
+
+static PyObject *SMBus_write_word_data(SMBus *self, PyObject *args)
+{
+    PyArg_ParseTuple(args, "iii:write_word_data", &addr, &cmd, &val))
+
+    addr = 0x0C, cmd = reg_addr, val = value;
+    i2c_smbus_write_word_data(self->fd, (__u8)cmd, (__u16)val));
+
+}
+-----------------------------
+__s32 i2c_smbus_write_word_data(int file, __u8 command, __u16 value)
+{
+	union i2c_smbus_data data;
+	data.word = value;
+	return i2c_smbus_access(file, I2C_SMBUS_WRITE, command,
+				I2C_SMBUS_WORD_DATA, &data);
+}
+
+
+drivers/i2c/i2c-dev.c
+
+static long i2cdev_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+{
+    case I2C_SMBUS: {
+	struct i2c_smbus_ioctl_data data_arg;
+	if (copy_from_user(&data_arg,
+			   (struct i2c_smbus_ioctl_data __user *) arg,
+			   sizeof(struct i2c_smbus_ioctl_data)))
+	    return -EFAULT;
+	return i2cdev_ioctl_smbus(client, data_arg.read_write,
+				  data_arg.command,
+				  data_arg.size,
+				  data_arg.data);
+    }
+}
