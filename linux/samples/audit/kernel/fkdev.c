@@ -253,7 +253,7 @@ fkdev_fasync(int i1, struct file *filep, int i2)
 }
 
 static int
-fkdev_lock(struct file *fp, int, struct file_lock *fl)
+fkdev_lock(struct file *fp, int a1, struct file_lock *fl)
 {
 #ifdef VERBOSE
     printk("%s: called\n", __func__);
@@ -262,8 +262,8 @@ fkdev_lock(struct file *fp, int, struct file_lock *fl)
 }
 
 static ssize_t
-fkdev_sendpage(struct file *fp, struct page *pg, int,
-	       size_t sz, loff_t *off, int t)
+fkdev_sendpage(struct file *fp, struct page *pg, int a1,
+	       size_t sz, loff_t *off, int a2)
 {
 #ifdef VERBOSE
     printk("%s: called\n", __func__);
