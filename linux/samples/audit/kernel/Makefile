@@ -11,12 +11,13 @@ clean:
 	rm -f ioctl-test
 #
 #
-mkdnod:
+mknod:
 	sudo  mknod /dev/fkdev c 60 1
 	sudo chmod 666 /dev/fkdev
 	ls -l /dev/fkdev
 insmod:
 	sudo insmod fkdev.ko
+	cat /proc/devices
 rmmod:
 	sudo rmmod fkdev.ko
 dmesg:
