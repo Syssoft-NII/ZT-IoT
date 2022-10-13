@@ -33,16 +33,16 @@ static void
 printhexk(char *msg, unsigned char *tbuf, size_t sz)
 {
     char	ccbuf[(HEXVAL_SZ)*2+1];
-    size_t	di, si, len;
+    size_t	di, si, maxlen, len;
 
     memset(ccbuf, 0, sizeof(ccbuf));
-    di =snprintf(ccbuf, HEXVAL_SZ, msg);
-    len = HEXVAL_SZ - di;
-    len = sz > len ? len : sz;
+    di = snprintf(ccbuf, HEXVAL_SZ, msg);
+    maxlen = (HEXVAL_SZ - di)/2; /* in hexa */
+    len = sz > maxlen ? maxlen : sz;
     for (si = 0; si < len; si++) {
 	di += snprintf(&ccbuf[di], HEXVAL_SZ - di, "%02x", tbuf[si]);
     }
-    snprintf(&ccbuf[di], len - di, "\n");
+    snprintf(&ccbuf[di], HEXVAL_SZ - di, "\n");
     printk(ccbuf);
 }
 
@@ -75,7 +75,9 @@ ioctl_handle_audit(unsigned int cmd, unsigned long arg)
 	    printhexk("ioctl: data2=", tbuf, sizeof(union i2c_smbus_data));
 	}
     }
-//  audit_ioctl((unsigned long ) data_arg.data, sizeof(union i2c_smbus_data));
+#ifdef ZT_IOT
+    audit_ioctl((unsigned long ) data_arg.data, sizeof(union i2c_smbus_data));
+#endif
     return 0;
 }
 

@@ -6,6 +6,8 @@
 #   fkdev: module verification failed: signature and/or required key missing
 #          - tainting kernel
 
+#CFLAGS_MODULE = -DZT_IOT
+
 obj-m := fkdev.o
 all: fkdev.ko ioctl-test
 fkdev.ko: fkdev.c
@@ -23,7 +25,7 @@ mknod:
 	ls -l /dev/fkdev
 insmod:
 	sudo insmod fkdev.ko
-	cat /proc/devices
+	cat /proc/devices | grep fkdev
 rmmod:
 	sudo rmmod fkdev.ko
 dmesg:
