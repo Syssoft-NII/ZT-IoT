@@ -1552,9 +1552,9 @@ static void audit_log_exit(void)
 			if (copy_from_user(tbuf,
 					   (const void*) context->ioctl.uaddr[0],
 					   sz)) {
-				audit_log_format(ab, "data2=-");
+				audit_log_format(ab, " data2=-");
 			} else {
-				audit_log_format(ab, "data2=");
+				audit_log_format(ab, " data2=");
 				audit_log_n_hex(ab, (void *)tbuf, IOBUF_LEN);
 			}
 		} else {
@@ -2748,4 +2748,5 @@ void audit_ioctl(unsigned long uaddr, size_t sz)
 		return __audit_ioctl(uaddr, sz);
 	}
 }
+EXPORT_SYMBOL_GPL(audit_ioctl);
 #endif /* ZT_IOT */
