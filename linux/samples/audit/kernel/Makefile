@@ -9,11 +9,13 @@
 #CFLAGS_MODULE = -DZT_IOT
 
 obj-m := fkdev.o
-all: fkdev.ko ioctl-test
+all: fkdev.ko ioctl-test show-field
 fkdev.ko: fkdev.c
 	make -C /lib/modules/$(shell uname -r)/build M=$(shell pwd) modules
 ioctl-test: ioctl-test.c
 	cc -o ioctl-test ioctl-test.c
+show-field: show-field.c
+	cc -o show-field show-field.c
 clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(shell pwd) clean
 	rm -f ioctl-test
@@ -32,3 +34,6 @@ dmesg:
 	sudo dmesg
 test:
 	./ioctl-test /dev/fkdev
+show:
+	./show-field
+
