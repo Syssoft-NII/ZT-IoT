@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <sys/types.h>
 #include <sys/stat.h>
+#include <sys/time.h>
 #include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
@@ -120,22 +121,29 @@ mqtt_lock_op(char *path, int op, char data)
 {
     int		fd;
     char	tmp;
+    ssize_t	sz;
     fd = mqtt_lockopen(SYNC_FILE);
     switch(op) {
     case SYNC_OP_WRITE:
-	write(fd, &data, 1);
+	sz = write(fd, &data, 1);
+	if (sz != 1) goto err_ext;
 	tmp = data;
 	break;
     case SYNC_OP_READ:
-	read(fd, &tmp, 1);
+	sz = read(fd, &tmp, 1);
+	if (sz != 1) goto err_ext;
 	break;
     case SYNC_OP_INC:
-	read(fd, &tmp, 1);
+	sz = read(fd, &tmp, 1);
+	if (sz != 1) goto err_ext;
 	tmp++;
 	lseek(fd, 0, SEEK_SET);
-	write(fd, &tmp, 1);
+	sz = write(fd, &tmp, 1);
+	if (sz != 1) goto err_ext;
 	break;
     }
+err_ext:
+    fprintf(stderr, "%s:Fail\n", __func__);
     lockf(fd, F_ULOCK, 0);
     close(fd);
     return tmp;
@@ -145,6 +153,32 @@ int
 mqtt_lockclose(int fd)
 {
     return close(fd);
+}
+
+void
+mqtt_getmessage(void *msg, const char **topic, const void **payload)
+{
+    struct mosquitto_message *mos_msg = (struct mosquitto_message*) msg;
+    *topic = mos_msg->topic;
+    *payload = mos_msg->payload;
+}
+
+void
+mqtt_publish_v5_callback_set(void *vp, void (*func)(void*, void*, int, int, void*))
+{
+    struct mosquitto *mosq = vp;
+    void (*mosq_func)(struct mosquitto*, void *, int, int, const mosquitto_property *);
+    mosq_func = (void (*)(struct mosquitto*, void*, int, int, const mosquitto_property *)) func;
+    mosquitto_publish_v5_callback_set(mosq, mosq_func);
+}
+
+void
+mqtt_message_callback_set(void *vp, void (*func)(void *, void *, void*))
+{
+    struct mosquitto *mosq = vp;
+    void (*on_message)(struct mosquitto *, void *, const struct mosquitto_message *);
+    on_message = (void(*)(struct mosquitto *, void *, const struct mosquitto_message *)) func;
+    mosquitto_message_callback_set(mosq, on_message);
 }
 
 static void

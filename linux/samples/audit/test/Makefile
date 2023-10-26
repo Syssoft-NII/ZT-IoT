@@ -1,4 +1,6 @@
 #
+#	./mqtt_pub2 -v -T hello -Q 1 -i 1 hello
+#	./mqtt_sub -v -T hello -Q 1 -i 1 hello
 #
 #ARCH=x86_64
 #ARCH=aarch64

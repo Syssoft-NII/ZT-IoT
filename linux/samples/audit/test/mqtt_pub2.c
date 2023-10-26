@@ -21,6 +21,18 @@ published(void *mosq, void *obj, int mid)
     }
 }
 
+void
+published_v5(void *mosq, void *obj, int mid, int rc, void *prop)
+{
+    if (rc) {
+	fprintf(stderr, "publish error: 0x%x\n", rc);
+    }
+    myiter++;
+    if (myiter == iter) {
+	mqtt_mxsignal(mx);
+    }
+}
+
 int
 main(int argc, char **argv)
 {
@@ -47,7 +59,9 @@ main(int argc, char **argv)
 	       host, port, topic, qos, iter, msg);
     }
     mosq = mqtt_init(host, port, keepalive, iter, verbose);
-    mqtt_publish_callback_set(mosq, published);
+    //mqtt_publish_callback_set(mosq, published);
+    mqtt_publish_callback_set(mosq, 0);
+    mqtt_publish_v5_callback_set(mosq, published_v5);
     mx = mqtt_mxalloc();
     /**/
     mqtt_loop_start(mosq);
@@ -64,5 +78,6 @@ main(int argc, char **argv)
     printf("Myiter = %d\n", myiter);
     mqtt_mxwait(mx);
     printf("Myiter = %d\n", myiter);
+    mqtt_fin(mosq);
     return 0;
 }

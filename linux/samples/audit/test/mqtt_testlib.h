@@ -17,6 +17,9 @@ extern void	mqtt_publisher(void **argv);
 #endif
 extern void	mqtt_publisher(char **argv);
 extern void	mqtt_publish_callback_set(void *vp, void (*func)(void*, void*, int));
+extern void	mqtt_publish_v5_callback_set(void *vp, void (*func)(void*, void*, int, int, void*));
+extern void	mqtt_message_callback_set(void *vp, void (*func)(void *, void *, void*));
+extern void	mqtt_getmessage(void *msg, const char **topic, const void **payload);
 extern int	mqtt_loop_start(void *vp);
 extern void	*mqtt_mxalloc();
 extern void	mqtt_mxsignal(void*);
